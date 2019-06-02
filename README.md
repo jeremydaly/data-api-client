@@ -195,5 +195,31 @@ Statement:
 
 *WIP*
 
+### Data API Limitations / Wonkiness
+The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outline some of my findings below.
+
+###You can't send in an array of values
+The GitHub repo for RDSDataService mentions something about `arrayValues`, but I've been unable to get arrays (including TypedArrays and Buffers) to be used for parameters with `IN` clauses. For example, the following query will **NOT** work:
+
+```javascript
+let insert = await data.executeStatement({
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
+  database: 'myDatabase',
+  sql: 'SELECT * FROM myTable WHERE id IN (:ids)',
+  parameters: [
+    { name: 'id', value: { blobValue: [1,2,3,4,5] } }
+  ]
+).promise()
+```
+
+I'm using `blobValue` because it's the only generic value field. You could send it in as a string, but then it only uses the first value. Hopefully they will add an `arrayValues` or something similar to support this in the future.
+
+###Named parameters MUST be sent in order
+Read that again if you need to. So parameters have to be **BOTH** named and *in order*, otherwise the query **may** fail. I stress **may**, because if you send in two fields of compatible type in the wrong order, the query will work, just with your values flipped. 🤦🏻‍♂️ Watch out for this one.
+
+###Batch statements do not give you updated record counts
+This one is a bit frustrating. If you execute a standard `executeStatement`, then it will return a `numberOfRecordsUpdated` for `UPDATE` and `DELETE` queries. This is handy for knowing if your query succeeded. Unfortunately, a `batchExecuteStatement` does not return this field for you.
+
 ## Contributions
 Contributions, ideas and bug reports are welcome and greatly appreciated. Please add [issues](https://github.com/jeremydaly/data-api-client/issues) for suggestions and bug reports or create a pull request.
