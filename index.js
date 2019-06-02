@@ -61,15 +61,21 @@ const AWS = require('aws-sdk')
       },
       // Add parameters if supplied
       parameters.length > 0 ?
+        // Batch statements require parameterSets instead of parameters
         { [isBatch ? 'parameterSets' : 'parameters']: parameters } : {},
       // Force meta data if set and not a batch
       hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {}
     )
 
+    let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
+      : config.RDS.executeStatement(params).promise())
+
+    console.log(isBatch);
+    console.log(result);
+
     // Format and return the results
     return formatResults(
-      await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
-        : config.RDS.executeStatement(params).promise()),
+      result,
       hydrateColumnNames,
       args[0].includeResultMetadata === true ? true : false
     )
@@ -126,11 +132,9 @@ const AWS = require('aws-sdk')
       : acc.concat(formatParams(p))
   ,[]) // end reduce
 
-
   // Creates array of converts parameters with the name/value format
   const formatParams = p => Object.keys(p).reduce((arr,x) =>
     arr.concat(formatType(x,p[x],getType(p[x]))),[])
-
 
   // Gets the value type and returns the correct value field name
   // TODO: Support more types as the are released
@@ -155,23 +159,38 @@ const AWS = require('aws-sdk')
   }
 
   // Formats the results of a query response
-  // TODO: Support generated fields
-  const formatResults = ({ columnMetadata,numberOfRecordsUpdated,records }, hydrate, includeMeta) =>
-    Object.assign( includeMeta ? { columnMetadata } : {},
-      { numberOfRecordsUpdated, records: formatRecords(records, hydrate ? columnMetadata : false) } )
+  // TODO: Support generatedFields (use case insertId)
+  const formatResults = (
+    { // destructure results
+      columnMetadata, // ONLY when hydrate or includeResultMetadata is true
+      numberOfRecordsUpdated, // ONLY for executeStatement method
+      records, // ONLY for executeStatement method
+      updateResults // ONLY on batchExecuteStatement
+    },
+    hydrate,
+    includeMeta
+  ) =>
+    Object.assign(
+      includeMeta ? { columnMetadata } : {},
+      numberOfRecordsUpdated !== undefined ? { numberOfRecordsUpdated } : {},
+      records ? {
+        records: formatRecords(records, hydrate ? columnMetadata : false)
+      } : {},
+      updateResults ? { updateResults } : {}
+    )
 
   // Processes records and either extracts Typed Values into an array, or
   // object with named column labels
   const formatRecords = (recs,columns) => {
 
     // Create map for efficient value parsing
-    let fmap = recs[0].map((x,i) => {
+    let fmap = recs ? recs[0].map((x,i) => {
       return Object.assign({},
         columns ? { label: columns[i].label } : {} ) // add column labels
-    })
+    }) : {}
 
     // Map over all the records (rows)
-    return recs.map(rec => {
+    return recs ? recs.map(rec => {
 
       // Reduce each field in the record (row)
       return rec.reduce((acc,field,i) => {
@@ -205,8 +224,8 @@ const AWS = require('aws-sdk')
         }
 
       }, columns ? {} : []) // init object if hydrate, else init array
-    })
-  }
+    }) : [] // empty record set returns an array
+  } // end formatRecords
 
 
 //-------------------------------------------------------------------------//
