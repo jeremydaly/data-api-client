@@ -1,0 +1,28 @@
+{
+  "name": "data-api-client",
+  "version": "0.0.0",
+  "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeremydaly/data-api-client.git"
+  },
+  "keywords": [
+    "serverless",
+    "data-api",
+    "aurora",
+    "aws"
+  ],
+  "author": "Jeremy Daly <jeremy@jeremydaly.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jeremydaly/data-api-client/issues"
+  },
+  "homepage": "https://github.com/jeremydaly/data-api-client#readme",
+  "devDependencies": {
+    "aws-sdk": "^2.466.0"
+  }
+}
