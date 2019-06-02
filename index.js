@@ -16,6 +16,9 @@
 // outside of a Lambda execution environment, it must be manually installed.
 const AWS = require('aws-sdk')
 
+// Require sqlstring to add additional escaping capabilities
+const sqlString = require('sqlstring')
+
 //-------------------------------------------------------------------------//
 // Enable HTTP Keep-Alive per https://vimeo.com/287511222
 // This dramatically increases the speed of subsequent HTTP calls
@@ -44,10 +47,18 @@ const AWS = require('aws-sdk')
   // Query function
   const query = async (config,...args) => {
 
-    // Parse hydration and parameters
+    // Parse and process sql
     const sql = parseSQL(args)
+    const sqlParams = getSqlParams(sql)
+
+    // Parse hydration setting
     const hydrateColumnNames = parseHydrate(config,args)
-    const parameters = annotateParams(parseParams(args)) // need to add ordering here
+
+    // Parse and normalize parameters
+    const parameters = normalizeParams(parseParams(args))
+
+    // Process parameters and escape necessary SQL
+    const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters)
 
     // Determine if this is a batch request
     const isBatch = parameters.length > 0
@@ -57,21 +68,19 @@ const AWS = require('aws-sdk')
       prepareParams(config,args),
       {
         database: parseDatabase(config,args), // add database
-        sql // add sql statement
+        sql: escapedSql // add escaped sql statement
       },
       // Add parameters if supplied
-      parameters.length > 0 ?
+      processedParams.length > 0 ?
         // Batch statements require parameterSets instead of parameters
-        { [isBatch ? 'parameterSets' : 'parameters']: parameters } : {},
+        { [isBatch ? 'parameterSets' : 'parameters']: processedParams } : {},
       // Force meta data if set and not a batch
       hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {}
     )
 
+    // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
       : config.RDS.executeStatement(params).promise())
-
-    console.log(isBatch);
-    console.log(result);
 
     // Format and return the results
     return formatResults(
@@ -125,16 +134,76 @@ const AWS = require('aws-sdk')
     values.includes(x) ? acc : Object.assign(acc,{ [x]: obj[x] })
   ,{})
 
+
+  // Normize parameters so that they are all in standard format
+  const normalizeParams = params => params.reduce((acc,p) =>
+    Array.isArray(p) ? acc.concat([normalizeParams(p)])
+      : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
+      : acc.concat(splitParams(p))
+  ,[]) // end reduce
+
   // Annotate parameters with correct types
   const annotateParams = params => params.reduce((acc,p) =>
     Array.isArray(p) ? acc.concat([annotateParams(p)])
       : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
-      : acc.concat(formatParams(p))
+      : acc.concat(
+        formatParam(Object.keys(p)[0],Object.values(p)[0])
+      )
   ,[]) // end reduce
 
-  // Creates array of converts parameters with the name/value format
-  const formatParams = p => Object.keys(p).reduce((arr,x) =>
-    arr.concat(formatType(x,p[x],getType(p[x]))),[])
+
+  // Prepare parameters
+  const processParams = (sql,sqlParams,params,row=0) => {
+    return {
+      processedParams: params.reduce((acc,p,i) => {
+        if (Array.isArray(p)) {
+          let result = processParams(sql,sqlParams,p,row)
+          if (row === 0) { sql = result.escapedSql; row++ }
+          return acc.concat([result.processedParams])
+        } else if (sqlParams[p.name]) {
+          if (sqlParams[p.name].type === 'n_ph') {
+            acc[sqlParams[p.name].index] = formatParam(p.name,p.value)
+          } else if (row === 0) {
+            let regex = new RegExp('::' + p.name + '\\b','g')
+            sql = sql.replace(regex,sqlString.escapeId(p.value))
+          }
+          return acc
+        } else {
+          return acc
+        }
+      },[]),
+      escapedSql: sql
+    }
+  }
+
+  // Converts parameter to the name/value format
+  const formatParam = (n,v) => formatType(n,v,getType(v))
+
+  const splitParams = p => Object.keys(p).reduce((arr,x) =>
+    arr.concat({ name: x, value: p[x] }),[])
+
+  // This appears to be a bug, so hopefully it will go away soon, but named
+  // parameters will *not* work if they are out of order! :facepalm:
+  const getSqlParams = sql => {
+    let p = 0 // position index for named parameters
+    // TODO: probably need to remove comments from the sql
+    // TODO: placeholders?
+    // sql.match(/\:{1,2}\w+|\?+/g).map((p,i) => {
+    return sql.match(/\:{1,2}\w+/g).map((p,i) => {
+      return p === '??' ? { type: 'id' } // identifier
+        : p === '?' ? { type: 'ph', label: '__d'+i  } // placeholder
+        : p.startsWith('::') ? { type: 'n_id', label: p.substr(2) } // named id
+        : { type: 'n_ph', label: p.substr(1) } // named placeholder
+    }).reduce((acc,x,i) => {
+      return Object.assign(acc,
+        {
+          [x.label]: {
+            type: x.type, index: x.type === 'n_ph' ? p++ : undefined
+          }
+        }
+      )
+    },{}) // end reduce
+  }
 
   // Gets the value type and returns the correct value field name
   // TODO: Support more types as the are released
@@ -153,10 +222,11 @@ const AWS = require('aws-sdk')
     return {
       name,
       value: {
-        [type ? type : error(`'${name}'' is an invalid type`)] : value
+        [type ? type : error(`'${name}'' is an invalid type`)] :
+          type === 'isNull' ? true : value
       }
     }
-  }
+  } // end formatType
 
   // Formats the results of a query response
   // TODO: Support generatedFields (use case insertId)
@@ -184,7 +254,7 @@ const AWS = require('aws-sdk')
   const formatRecords = (recs,columns) => {
 
     // Create map for efficient value parsing
-    let fmap = recs ? recs[0].map((x,i) => {
+    let fmap = recs && recs[0] ? recs[0].map((x,i) => {
       return Object.assign({},
         columns ? { label: columns[i].label } : {} ) // add column labels
     }) : {}

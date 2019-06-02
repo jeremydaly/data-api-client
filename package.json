@@ -24,5 +24,8 @@
   "homepage": "https://github.com/jeremydaly/data-api-client#readme",
   "devDependencies": {
     "aws-sdk": "^2.466.0"
+  },
+  "dependencies": {
+    "sqlstring": "^2.3.1"
   }
 }
