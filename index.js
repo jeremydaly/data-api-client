@@ -127,10 +127,13 @@ const AWS = require('aws-sdk')
   ,[]) // end reduce
 
 
+  // Creates array of converts parameters with the name/value format
   const formatParams = p => Object.keys(p).reduce((arr,x) =>
     arr.concat(formatType(x,p[x],getType(p[x]))),[])
 
 
+  // Gets the value type and returns the correct value field name
+  // TODO: Support more types as the are released
   const getType = val =>
     typeof val === 'string' ? 'stringValue'
     : typeof val === 'boolean' ? 'booleanValue'
@@ -141,6 +144,7 @@ const AWS = require('aws-sdk')
     // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
     : undefined
 
+  // Creates a standard Data API parameter using the supplied inputs
   const formatType = (name,value,type) => {
     return {
       name,
@@ -150,47 +154,57 @@ const AWS = require('aws-sdk')
     }
   }
 
+  // Formats the results of a query response
+  // TODO: Support generated fields
   const formatResults = ({ columnMetadata,numberOfRecordsUpdated,records }, hydrate, includeMeta) =>
     Object.assign( includeMeta ? { columnMetadata } : {},
       { numberOfRecordsUpdated, records: formatRecords(records, hydrate ? columnMetadata : false) } )
 
+  // Processes records and either extracts Typed Values into an array, or
+  // object with named column labels
   const formatRecords = (recs,columns) => {
 
     // Create map for efficient value parsing
     let fmap = recs[0].map((x,i) => {
       return Object.assign({},
-        columns ? { label: columns[i].label } : {} )
+        columns ? { label: columns[i].label } : {} ) // add column labels
     })
 
-    // Process the records
+    // Map over all the records (rows)
     return recs.map(rec => {
+
+      // Reduce each field in the record (row)
       return rec.reduce((acc,field,i) => {
 
         // If the field is null, always return null
         if (field.isNull === true) {
-          return columns ?
+          return columns ? // object if hydrate, else array
             Object.assign(acc,{ [fmap[i].label]: null })
             : acc.concat(null)
+
         // If the field is mapped, return the mapped field
         } else if (fmap[i] && fmap[i].field) {
-          return columns ?
+          return columns ? // object if hydrate, else array
             Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
             : acc.concat(field[fmap[i].field])
+
         // Else discover the field type
         } else {
+
           // Look for non-null fields
           Object.keys(field).map(type => {
             if (type !== 'isNull' && field[type] !== null) {
               fmap[i]['field'] = type
             }
           })
+
           // Return the mapped field (this should NEVER be null)
-          return columns ?
+          return columns ? // object if hydrate, else array
             Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
             : acc.concat(field[fmap[i].field])
         }
 
-      }, columns ? {} : [])
+      }, columns ? {} : []) // init object if hydrate, else init array
     })
   }
 
