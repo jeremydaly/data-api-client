@@ -123,11 +123,11 @@ const AWS = require('aws-sdk')
   const annotateParams = params => params.reduce((acc,p) =>
     Array.isArray(p) ? acc.concat([annotateParams(p)])
       : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
-      : acc.concat(formattedParams(p))
+      : acc.concat(formatParams(p))
   ,[]) // end reduce
 
 
-  const formattedParams = p => Object.keys(p).reduce((arr,x) =>
+  const formatParams = p => Object.keys(p).reduce((arr,x) =>
     arr.concat(formatType(x,p[x],getType(p[x]))),[])
 
 
