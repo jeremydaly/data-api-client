@@ -33,9 +33,6 @@ const sqlString = require('sqlstring')
   })
   sslAgent.setMaxListeners(0) // same as aws-sdk
 
-  // Update the default AWS http agent with our new sslAgent
-  AWS.config.update({ httpOptions: { agent: sslAgent } })
-
 
 //-------------------------------------------------------------------------//
 // PRIVATE METHODS
@@ -60,9 +57,12 @@ const sqlString = require('sqlstring')
     // Process parameters and escape necessary SQL
     const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters)
 
+    // console.log('PARAMS:',processedParams)
+    // console.log('SQL:',escapedSql)
+
     // Determine if this is a batch request
-    const isBatch = parameters.length > 0
-      && Array.isArray(parameters[0]) ? true : false
+    const isBatch = processedParams.length > 0
+      && Array.isArray(processedParams[0]) ? true : false
 
     const params = Object.assign(
       prepareParams(config,args),
@@ -70,7 +70,7 @@ const sqlString = require('sqlstring')
         database: parseDatabase(config,args), // add database
         sql: escapedSql // add escaped sql statement
       },
-      // Add parameters if supplied
+      // Only include parameters if they exist
       processedParams.length > 0 ?
         // Batch statements require parameterSets instead of parameters
         { [isBatch ? 'parameterSets' : 'parameters']: processedParams } : {},
@@ -81,6 +81,8 @@ const sqlString = require('sqlstring')
     // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
       : config.RDS.executeStatement(params).promise())
+
+    // console.log(result)
 
     // Format and return the results
     return formatResults(
@@ -125,7 +127,7 @@ const sqlString = require('sqlstring')
     return Object.assign(
       { secretArn,resourceArn }, // return Arns
       typeof args[0] === 'object' ?
-        omit(args[0],['hydrateColumnNames']) : {} // merge any inputs
+        omit(args[0],['hydrateColumnNames','parameters']) : {} // merge any inputs
     )
   }
 
@@ -189,7 +191,7 @@ const sqlString = require('sqlstring')
     // TODO: probably need to remove comments from the sql
     // TODO: placeholders?
     // sql.match(/\:{1,2}\w+|\?+/g).map((p,i) => {
-    return sql.match(/\:{1,2}\w+/g).map((p,i) => {
+    return (sql.match(/\:{1,2}\w+/g) || []).map((p,i) => {
       return p === '??' ? { type: 'id' } // identifier
         : p === '?' ? { type: 'ph', label: '__d'+i  } // placeholder
         : p.startsWith('::') ? { type: 'n_id', label: p.substr(2) } // named id
@@ -235,6 +237,7 @@ const sqlString = require('sqlstring')
       columnMetadata, // ONLY when hydrate or includeResultMetadata is true
       numberOfRecordsUpdated, // ONLY for executeStatement method
       records, // ONLY for executeStatement method
+      generatedFields, // ONLY for INSERTS
       updateResults // ONLY on batchExecuteStatement
     },
     hydrate,
@@ -246,7 +249,9 @@ const sqlString = require('sqlstring')
       records ? {
         records: formatRecords(records, hydrate ? columnMetadata : false)
       } : {},
-      updateResults ? { updateResults } : {}
+      updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
+      generatedFields && generatedFields.length > 0 ?
+        { insertId: generatedFields[0].longValue } : {}
     )
 
   // Processes records and either extracts Typed Values into an array, or
@@ -297,6 +302,16 @@ const sqlString = require('sqlstring')
     }) : [] // empty record set returns an array
   } // end formatRecords
 
+  // Format updateResults and extract insertIds
+  const formatUpdateResults = res => res.map(x => {
+    return x.generatedFields && x.generatedFields.length > 0 ?
+      { insertId: x.generatedFields[0].longValue } : {}
+  })
+
+
+  // Merge configuration data with supplied arguments
+  const mergeConfig = ({secretArn,resourceArn,database},args) =>
+    Object.assign({secretArn,resourceArn,database},args)
 
 //-------------------------------------------------------------------------//
 // INSTANTIATION
@@ -309,6 +324,11 @@ module.exports = (params) => {
   const options = typeof params.options === 'object' ? params.options
     : params.options !== undefined ? error(`'options' must be an object`)
     : {}
+
+  // Update the default AWS http agent with our new sslAgent
+  if (typeof params.keepAlive !== false) {
+    AWS.config.update({ httpOptions: { agent: sslAgent } })
+  }
 
   // Set the configuration for this instance
   const config = {
@@ -328,7 +348,8 @@ module.exports = (params) => {
 
     // Set hydrateColumnNames (default to true)
     hydrateColumnNames:
-      typeof params.hydrateColumnNames === 'boolean' ? false : true,
+      typeof params.hydrateColumnNames === 'boolean' ?
+        params.hydrateColumnNames : true,
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
@@ -342,11 +363,16 @@ module.exports = (params) => {
     query: (...x) => query(config,...x),
 
     // Export promisified versions of the RDSDataService methods
-    batchExecuteStatement: (x) => config.RDS.batchExecuteStatement(x).promise(),
-    beginTransaction: (x) => config.RDS.beginTransaction(x).promise(),
-    commitTransaction: (x) => config.RDS.commitTransaction(x).promise(),
-    executeStatement: (x) => config.RDS.executeStatement(x).promise(),
-    rollbackTransaction: (x) => config.RDS.rollbackTransaction(x).promise()
+    batchExecuteStatement: (args) =>
+      config.RDS.batchExecuteStatement(mergeConfig(config,args)).promise(),
+    beginTransaction: (args) =>
+      config.RDS.beginTransaction(mergeConfig(config,args)).promise(),
+    commitTransaction: (args) =>
+      config.RDS.commitTransaction(mergeConfig(config,args)).promise(),
+    executeStatement: (args) =>
+      config.RDS.executeStatement(mergeConfig(config,args)).promise(),
+    rollbackTransaction: (args) =>
+      config.RDS.rollbackTransaction(mergeConfig(config,args)).promise()
   }
 
 } // end exports
