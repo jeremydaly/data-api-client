@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "0.0.0",
+  "version": "1.0.0-beta",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "index.js",
   "scripts": {

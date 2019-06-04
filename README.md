@@ -1,6 +1,9 @@
 # Aurora Serverless Data API Client
 
-**THIS IS A WORK IN PROGRESS AND HAS NOT BEEN PUBLISHED TO NPM YET!**
+[![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
+[![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
+
+**THIS PROJECT IS IN BETA. I WOULD LOVE YOUR FEEDBACK! PLEASE FEEL FREE TO CONTACT ME ON TWITTER [@jeremy_daly](https://twitter.com/jeremy_daly)**
 
 The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html]) for the Data API. It also promisifies the `AWS.RDSDataService` client to make working with `async/await` or Promise chains easier AND dramatically simplifies **transactions**.
 
@@ -139,7 +142,6 @@ In addition to requiring types for parameters, it also returns each field as an 
 Not only are there no column names, but you have to remove all `null` fields and pull the value from the remaining data type. Lots of extra work that the **Data API Client** handles automatically for you. 😀
 
 ## Installation and Setup
-**NOTE:** Not published yet
 ```
 npm i data-api-client
 ```

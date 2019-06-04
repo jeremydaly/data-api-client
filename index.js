@@ -8,7 +8,7 @@
  * https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html
  *
  * @author Jeremy Daly <jeremy@jeremydaly.com>
- * @version 1.0.0
+ * @version 1.0.0-beta
  * @license MIT
  */
 
