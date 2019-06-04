@@ -2,7 +2,7 @@
 
 **THIS IS A WORK IN PROGRESS AND HAS NOT BEEN PUBLISHED TO NPM YET!**
 
-The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html]) for the Data API. It also promisifies the `AWS.RDSDataService` client to make working with `async/await` or Promise chains easier.
+The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html]) for the Data API. It also promisifies the `AWS.RDSDataService` client to make working with `async/await` or Promise chains easier AND dramatically simplifies **transactions**.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
 
@@ -164,7 +164,7 @@ Below is a table containing all of the possible configuration options for the `d
 
 The **Data API Client** wraps the [RDSDataService Class](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html), providing you with a number of convenience features to make your workflow easier. The module also exposes **promisified** versions of all the standard `RDSDataService` methods, with your default configuration information already merged in. 😉
 
-To use the Data API Client, require the module and instantiate it with your [Configuration options](#configuration-options). If you are using it with AWS Lambda, require it **OUTSIDE** your main handler function. This will allow you to reuse the initialize module on subsequent invocations.
+To use the Data API Client, require the module and instantiate it with your [Configuration options](#configuration-options). If you are using it with AWS Lambda, require it **OUTSIDE** your main handler function. This will allow you to reuse the initialized module on subsequent invocations.
 
 ```javascript
 // Require and instantiate data-api-client with secret and cluster arns
@@ -182,7 +182,7 @@ Once initialized, running a query is super simple. Use the `query()` method and 
 let result = await data.query(`SELECT * FROM myTable`)
 ```
 
-By default, this will return your rows as an array of objects with columns as property names:
+By default, this will return your rows as an array of objects with column names as property names:
 ```javascript
 [
   { id: 1, name: 'Alice', age: null },
@@ -200,7 +200,7 @@ let result = await data.query(`
 )
 ```
 
-The Data API Client will automatically convert your parameters into the correct Data API parameter format using native JavaScript types. If you prefer to use the clunky format, or you need more control over the data type, you can just pass in the RDSDataService format:
+The Data API Client will automatically convert your parameters into the correct Data API parameter format using native JavaScript types. If you prefer to use the clunky format, or you need more control over the data type, you can just pass in the `RDSDataService` format:
 
 ```javascript
 let result = await data.query(
@@ -218,17 +218,17 @@ If you want even more control, you can pass in an `object` as the first paramete
 ```javascript
 let result = await data.query({
   sql: `SELECT * FROM myTable WHERE id = :id`,
-  parameters: [ { id: 2 }], // or just { id: 2 }
+  parameters: [ { id: 2 } ], // or just { id: 2 }
   database: 'someOtherDatabase', // override default database
   schema: 'mySchema', // RDSDataService config option
   continueAfterTimeout: true, // RDSDataService config option (non-batch only)
-  includeResultMetadata: true, // RDSDataService config (non-batch only)
+  includeResultMetadata: true, // RDSDataService config option (non-batch only)
   hydrateColumnNames: false, // Returns each record as an arrays of values
   transactionId: 'AQC5SRDIm...ZHXP/WORU=' // RDSDataService config option
 }
 ```
 
-Sometimes you might want to have dynamic identifiers in your SQL statements. Unfortunately, the RDSDataService doesn't do this, but the **Data API Client** does! We're using the [sqlstring](https://github.com/mysqljs/sqlstring) module under the hood, so as long as [NO_BACKSLASH_ESCAPES](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html#sqlmode_no_backslash_escapes) SQL mode is disabled (which is the default state for MySQL servers), you're good to go. Use a double colon (`::`) prefix to create *named identifiers* and you can do cool things like this:
+Sometimes you might want to have *dynamic identifiers* in your SQL statements. Unfortunately, the `RDSDataService` doesn't do this, but the **Data API Client** does! We're using the [sqlstring](https://github.com/mysqljs/sqlstring) module under the hood, so as long as [NO_BACKSLASH_ESCAPES](https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html#sqlmode_no_backslash_escapes) SQL mode is disabled (which is the default state for Aurora Serverless), you're good to go. Use a double colon (`::`) prefix to create *named identifiers* and you can do cool things like this:
 
 ```javascript
 let result = await data.query(
@@ -246,10 +246,10 @@ Which will produce a query like this:
 SELECT `id`, `name`, `created` FROM `table_123abc` WHERE id > :id LIMIT 10
 ```
 
-You'll notice that we leave the *named parameters* alone. Anything that Data API and the RDSDataService Class currently handles, we defer to them.
+You'll notice that we leave the *named parameters* alone. Anything that Data API and the `RDSDataService` Class currently handles, we defer to them.
 
 ### Batch Queries
-The RDSDataService Class provides a `batchExecuteStatement` method that allows you execute a prepared statement multiple times using different parameter sets. This is only allowed for `INSERT`, `UPDATE` and `DELETE` queries, but is much more efficient than issuing multiple `executeStatement` calls. The Data API Client handles the switching for you based on *how* you send in your parameters.
+The `RDSDataService` Class provides a `batchExecuteStatement` method that allows you to execute a prepared statement multiple times using different parameter sets. This is only allowed for `INSERT`, `UPDATE` and `DELETE` queries, but is much more efficient than issuing multiple `executeStatement` calls. The Data API Client handles the switching for you based on *how* you send in your parameters.
 
 To issue a batch query, use the `query()` method (either by passing an object or using the two arity form), and provide multiple parameter sets as nested arrays. For example, if you wanted to update multiple records at once, your query might look like this:
 
@@ -269,6 +269,33 @@ Whenever a batch query is executed, it returns an `updateResults` field. Other t
 
 ### Retrieving Insert IDs
 The Data API returns a `generatedFields` array that contains the value of auto-incrementing primary keys. If this value is returned, the Data API Client will parse this and return it as the `insertId`. This also works for batch queries as well.
+
+## Transaction Support
+Transaction support in the Data API Client has been dramatically simplified. Start a new transaction using the `transaction()` method, and then chain queries using the `query()` method. The `query()` method supports all standard query options. Alternatively, you can specify a function as the only argument in a `query()` method call and return the arguments as an array of values. The function receives two arguments, the result of the last query executed, and an array containing all the previous query results. This is useful if you need values from a previous query as part of your transaction.
+
+You can specify an optional `rollback()` method in the chain. This will receive the `error` object and the `transactionStatus` object, allowing you to add additional logging or perform some other action. Call the `commit()` method when you are ready to execute the queries.
+
+```javascript
+let results = await mysql.transaction()
+  .query('INSERT INTO myTable (name) VALUES(:name)', { name: 'Tiger' })
+  .query('UPDATE myTable SET age = :age WHERE name = :name' { age: 4, name: 'Tiger' })
+  .rollback((e,status) => { /* do something with the error */ }) // optional
+  .commit() // execute the queries
+```
+
+With a function to get the `insertId` from the previous query:
+
+```javascript
+let results = await mysql.transaction()
+  .query('INSERT INTO myTable (name) VALUES(:name)', { name: 'Tiger' })
+  .query((r) => [ 'UPDATE myTable SET age = :age WHERE id = :id', { age: 4, id: r.insertId } ])
+  .rollback((e,status) => { /* do something with the error */ }) // optional
+  .commit() // execute the queries
+```
+
+Transactions work with batch queries, too! 👊
+
+By default, the `transaction()` method will use the `resourceArn`, `secretArn` and `database` values you set at initialization. Any or all of these values can be overwritten by passing an object into the `transaction()` method. Since transactions are for a specific database, you can't overwrite their values when chaining queries. You can, however, overwrite the `includeResultMetadata` and `hydrateColumnNames` settings per query.
 
 ### Using native methods directly
 
@@ -290,12 +317,6 @@ let result = await data.executeStatement({
   transactionId: 'AQC5SRDIm...ZHXP/WORU='
 )
 ```
-
-### Transactions
-
-*Transaction support is a work in progress*
-
-The Data API handles transaction by generating a `transactionId` and then passing that to each query in the transaction. The Data API Client will support simplified workflow.
 
 ## Data API Limitations / Wonkiness
 The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outline some of my findings below.
