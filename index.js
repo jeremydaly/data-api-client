@@ -19,10 +19,10 @@ const AWS = require('aws-sdk')
 // Require sqlstring to add additional escaping capabilities
 const sqlString = require('sqlstring')
 
-//-------------------------------------------------------------------------//
-// Enable HTTP Keep-Alive per https://vimeo.com/287511222
-// This dramatically increases the speed of subsequent HTTP calls
-//-------------------------------------------------------------------------//
+/**********************************************************************/
+/** Enable HTTP Keep-Alive per https://vimeo.com/287511222          **/
+/** This dramatically increases the speed of subsequent HTTP calls  **/
+/**********************************************************************/
 
   const https = require('https')
 
@@ -34,64 +34,12 @@ const sqlString = require('sqlstring')
   sslAgent.setMaxListeners(0) // same as aws-sdk
 
 
-//-------------------------------------------------------------------------//
-// PRIVATE METHODS
-//-------------------------------------------------------------------------//
+/********************************************************************/
+/**  PRIVATE METHODS                                               **/
+/********************************************************************/
 
   // Simple error function
   const error = (...err) => { throw Error(...err) }
-
-  // Query function
-  const query = async (config,...args) => {
-
-    // Parse and process sql
-    const sql = parseSQL(args)
-    const sqlParams = getSqlParams(sql)
-
-    // Parse hydration setting
-    const hydrateColumnNames = parseHydrate(config,args)
-
-    // Parse and normalize parameters
-    const parameters = normalizeParams(parseParams(args))
-
-    // Process parameters and escape necessary SQL
-    const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters)
-
-    // console.log('PARAMS:',processedParams)
-    // console.log('SQL:',escapedSql)
-
-    // Determine if this is a batch request
-    const isBatch = processedParams.length > 0
-      && Array.isArray(processedParams[0]) ? true : false
-
-    const params = Object.assign(
-      prepareParams(config,args),
-      {
-        database: parseDatabase(config,args), // add database
-        sql: escapedSql // add escaped sql statement
-      },
-      // Only include parameters if they exist
-      processedParams.length > 0 ?
-        // Batch statements require parameterSets instead of parameters
-        { [isBatch ? 'parameterSets' : 'parameters']: processedParams } : {},
-      // Force meta data if set and not a batch
-      hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {}
-    )
-
-    // Capture the result for debugging
-    let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
-      : config.RDS.executeStatement(params).promise())
-
-    // console.log(result)
-
-    // Format and return the results
-    return formatResults(
-      result,
-      hydrateColumnNames,
-      args[0].includeResultMetadata === true ? true : false
-    )
-
-  } // end query
 
   // Parse SQL statement from provided arguments
   const parseSQL = args =>
@@ -111,7 +59,8 @@ const sqlString = require('sqlstring')
 
   // Parse the supplied database, or default to config
   const parseDatabase = (config,args) =>
-    typeof args[0].database === 'string' ? args[0].database
+    config.transactionId ? config.database
+    : typeof args[0].database === 'string' ? args[0].database
     : args[0].database ? error(`'database' must be a string.`)
     : config.database ? config.database
     : error(`No 'database' provided.`)
@@ -136,6 +85,13 @@ const sqlString = require('sqlstring')
     values.includes(x) ? acc : Object.assign(acc,{ [x]: obj[x] })
   ,{})
 
+  // Utility function for picking certain keys from an object
+  const pick = (obj,values) => Object.keys(obj).reduce((acc,x) =>
+    values.includes(x) ? Object.assign(acc,{ [x]: obj[x] }) : acc
+  ,{})
+
+  // Utility function for flattening arrays
+  const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
 
   // Normize parameters so that they are all in standard format
   const normalizeParams = params => params.reduce((acc,p) =>
@@ -313,9 +269,156 @@ const sqlString = require('sqlstring')
   const mergeConfig = ({secretArn,resourceArn,database},args) =>
     Object.assign({secretArn,resourceArn,database},args)
 
-//-------------------------------------------------------------------------//
-// INSTANTIATION
-//-------------------------------------------------------------------------//
+
+
+/********************************************************************/
+/**  QUERY MANAGEMENT                                              **/
+/********************************************************************/
+
+  // Query function (use standard form for `this` context)
+  const query = async function(config,..._args) {
+
+    // Flatten passed in args to single depth array
+    const args = flatten(_args)
+
+    // Parse and process sql
+    const sql = parseSQL(args)
+    const sqlParams = getSqlParams(sql)
+
+    // Parse hydration setting
+    const hydrateColumnNames = parseHydrate(config,args)
+
+    // Parse and normalize parameters
+    const parameters = normalizeParams(parseParams(args))
+
+    // Process parameters and escape necessary SQL
+    const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters)
+
+    // Determine if this is a batch request
+    const isBatch = processedParams.length > 0
+      && Array.isArray(processedParams[0]) ? true : false
+
+    const params = Object.assign(
+      prepareParams(config,args),
+      {
+        database: parseDatabase(config,args), // add database
+        sql: escapedSql // add escaped sql statement
+      },
+      // Only include parameters if they exist
+      processedParams.length > 0 ?
+        // Batch statements require parameterSets instead of parameters
+        { [isBatch ? 'parameterSets' : 'parameters']: processedParams } : {},
+      // Force meta data if set and not a batch
+      hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {},
+      // If a transactionId is passed, overwrite any manual input
+      config.transactionId ? { transactionId: config.transactionId } : {}
+    ) // end params
+
+    try { // attempt to run the query
+
+      // Capture the result for debugging
+      let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
+        : config.RDS.executeStatement(params).promise())
+
+      // console.log(result)
+
+      // Format and return the results
+      return formatResults(
+        result,
+        hydrateColumnNames,
+        args[0].includeResultMetadata === true ? true : false
+      )
+
+    } catch(e) {
+
+      if (this && this.rollback) {
+        let rollback = await config.RDS.rollbackTransaction(
+          pick(params,['resourceArn','secretArn','transactionId'])
+        ).promise()
+
+        this.rollback(e,rollback)
+      }
+      // Throw the error
+      throw e
+    }
+
+  } // end query
+
+
+
+/********************************************************************/
+/**  TRANSACTION MANAGEMENT                                        **/
+/********************************************************************/
+
+  // Init a transaction object and return methods
+  const transaction = (config,_args) => {
+
+    let args = typeof _args === 'object' ? [_args] : [{}]
+    let queries = [] // keep track of queries
+    let rollback = () => {} // default rollback event
+
+    const txConfig = Object.assign(
+      prepareParams(config,args),
+      {
+        database: parseDatabase(config,args), // add database
+        hydrateColumnNames: parseHydrate(config,args), // add hydrate
+        RDS: config.RDS // reference the RDSDataService instance
+      }
+    )
+
+    return {
+      query: function(...args) {
+        if (typeof args[0] === 'function') {
+          queries.push(args[0])
+        } else {
+          queries.push(() => [...args])
+        }
+        return this
+      },
+      rollback: function(fn) {
+        if (typeof fn === 'function') { rollback = fn }
+        return this
+      },
+      commit: async function() { return await commit(txConfig,queries,rollback) }
+    }
+  }
+
+  // Commit transaction by running queries
+  const commit = async (config,queries,rollback) => {
+
+    let results = [] // keep track of results
+
+    // Start a transaction
+    const { transactionId } = await config.RDS.beginTransaction(
+      pick(config,['resourceArn','secretArn','database'])
+    ).promise()
+
+    // Add transactionId to the config
+    let txConfig = Object.assign(config, { transactionId })
+
+    // Loop through queries
+    for (let i = 0; i < queries.length; i++) {
+      // Execute the queries, pass the rollback as context
+      let result = await query.apply({rollback},[config,queries[i](results[results.length-1],results)])
+      // Add the result to the main results accumulator
+      results.push(result)
+    }
+
+    // Commit our transaction
+    const { transactionStatus } = await txConfig.RDS.commitTransaction(
+      pick(config,['resourceArn','secretArn','transactionId'])
+    ).promise()
+
+    // Add the transaction status to the results
+    results.push({transactionStatus})
+
+    // Return the results
+    return results
+  }
+
+/********************************************************************/
+/**  INSTANTIATION                                                 **/
+/********************************************************************/
 
 // Export main function
 module.exports = (params) => {
@@ -344,7 +447,12 @@ module.exports = (params) => {
     // Load optional database
     database: typeof params.database === 'string' ? params.database
       : params.database !== undefined ? error(`'database' must be a string`)
-      : null,
+      : undefined,
+
+    // Load optional schema DISABLED for now since this isn't used with MySQL
+    // schema: typeof params.schema === 'string' ? params.schema
+    //   : params.schema !== undefined ? error(`'schema' must be a string`)
+    //   : undefined,
 
     // Set hydrateColumnNames (default to true)
     hydrateColumnNames:
@@ -359,20 +467,32 @@ module.exports = (params) => {
 
   // Return public methods
   return {
-    // Query method, pass config
+    // Query method, pass config and parameters
     query: (...x) => query(config,...x),
+    // Transaction method, pass config and parameters
+    transaction: (x) => transaction(config,x),
 
     // Export promisified versions of the RDSDataService methods
     batchExecuteStatement: (args) =>
-      config.RDS.batchExecuteStatement(mergeConfig(config,args)).promise(),
+      config.RDS.batchExecuteStatement(
+        mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
+      ).promise(),
     beginTransaction: (args) =>
-      config.RDS.beginTransaction(mergeConfig(config,args)).promise(),
+      config.RDS.beginTransaction(
+        mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
+      ).promise(),
     commitTransaction: (args) =>
-      config.RDS.commitTransaction(mergeConfig(config,args)).promise(),
+      config.RDS.commitTransaction(
+        mergeConfig(pick(config,['resourceArn','secretArn']),args)
+      ).promise(),
     executeStatement: (args) =>
-      config.RDS.executeStatement(mergeConfig(config,args)).promise(),
+      config.RDS.executeStatement(
+        mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
+      ).promise(),
     rollbackTransaction: (args) =>
-      config.RDS.rollbackTransaction(mergeConfig(config,args)).promise()
+      config.RDS.rollbackTransaction(
+        mergeConfig(pick(config,['resourceArn','secretArn']),args)
+      ).promise()
   }
 
 } // end exports
