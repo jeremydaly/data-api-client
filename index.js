@@ -267,7 +267,7 @@ const sqlString = require('sqlstring')
 
   // Merge configuration data with supplied arguments
   const mergeConfig = ({secretArn,resourceArn,database},args) =>
-    Object.assign({secretArn,resourceArn,database},args)
+    Object.assign({secretArn,resourceArn}, database ? {database} : {},args)
 
 
 
