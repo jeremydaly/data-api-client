@@ -43,16 +43,13 @@ let insert = await data.query(
 )
 
 // BATCH INSERT with named parameters
-let batchInsert = await data.query(
-  `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
-  [
-    { name: 'Marcia', age: 17,  curls: false },
-    { name: 'Peter',  age: 15,  curls: false },
-    { name: 'Jan',    age: 15,  curls: false },
-    { name: 'Cindy',  age: 12,  curls: true  },
-    { name: 'Bobby',  age: 12,  curls: false }
+let batchInsert = await data.query({
+  sql: `INSERT INTO myTable (userId, date) VALUES(:userId, :date)`,
+  parameters: [
+    [{ userId: "user-1", date: "2019-08-01" }],
+    [{ userId: "user-2", date: "2019-08-02" }]
   ]
-)
+});
 
 // Update with named parameters
 let update = await data.query(
