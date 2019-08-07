@@ -46,14 +46,13 @@ let insert = await data.query(
 let batchInsert = await data.query(
   `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
   [
-    { name: 'Marcia', age: 17,  curls: false },
-    { name: 'Peter',  age: 15,  curls: false },
-    { name: 'Jan',    age: 15,  curls: false },
-    { name: 'Cindy',  age: 12,  curls: true  },
-    { name: 'Bobby',  age: 12,  curls: false }
+    [{ name: 'Marcia', age: 17,  curls: false }],
+    [{ name: 'Peter',  age: 15,  curls: false }],
+    [{ name: 'Jan',    age: 15,  curls: false }],
+    [{ name: 'Cindy',  age: 12,  curls: true  }],
+    [{ name: 'Bobby',  age: 12,  curls: false }]
   ]
 )
-
 // Update with named parameters
 let update = await data.query(
   `UPDATE myTable SET age = :age WHERE id = :id`,
