@@ -15,67 +15,62 @@ The **Data API Client** makes working with the Aurora Serverless Data API super 
 
 ```javascript
 // Require and instantiate data-api-client with secret and cluster
-const data = require('data-api-client')({
-  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
-  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
-  database: 'myDatabase' // Default database
-  region: 'us-east-1' // Optional - defaults to aws-sdk default
-})
+const data = require("data-api-client")({
+  secretArn: "arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret",
+  resourceArn: "arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name",
+  database: "myDatabase" // default database
+});
 
 /*** Assuming we're in an async function ***/
 
 // Simple SELECT
-let result = await data.query(`SELECT * FROM myTable`)
+let result = await data.query(`SELECT * FROM myTable`);
 // [ { id: 1, name: 'Alice', age: null },
 //   { id: 2, name: 'Mike', age: 52 },
 //   { id: 3, name: 'Carol', age: 50 } ]
 
 // SELECT with named parameters
-let resultParams = await data.query(
-  `SELECT * FROM myTable WHERE id = :id`,
-  { id: 2 }
-)
+let resultParams = await data.query(`SELECT * FROM myTable WHERE id = :id`, {
+  id: 2
+});
 // [ { id: 2, name: 'Mike', age: 52 } ]
 
 // INSERT with named parameters
 let insert = await data.query(
   `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
-  { name: 'Greg',   age: 18,  curls: false }
-)
+  { name: "Greg", age: 18, curls: false }
+);
 
 // BATCH INSERT with named parameters
 let batchInsert = await data.query(
   `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
   [
-    [{ name: 'Marcia', age: 17,  curls: false }],
-    [{ name: 'Peter',  age: 15,  curls: false }],
-    [{ name: 'Jan',    age: 15,  curls: false }],
-    [{ name: 'Cindy',  age: 12,  curls: true  }],
-    [{ name: 'Bobby',  age: 12,  curls: false }]
+    [{ name: "Marcia", age: 17, curls: false }],
+    [{ name: "Peter", age: 15, curls: false }],
+    [{ name: "Jan", age: 15, curls: false }],
+    [{ name: "Cindy", age: 12, curls: true }],
+    [{ name: "Bobby", age: 12, curls: false }]
   ]
-)
+);
 // Update with named parameters
-let update = await data.query(
-  `UPDATE myTable SET age = :age WHERE id = :id`,
-  { age: 13, id: 5 }
-)
+let update = await data.query(`UPDATE myTable SET age = :age WHERE id = :id`, {
+  age: 13,
+  id: 5
+});
 
 // Delete with named parameters
 let remove = await data.query(
   `DELETE FROM myTable WHERE name = :name`,
-  { name: 'Jan' } // Sorry Jan :(
-)
+  { name: "Jan" } // Sorry Jan :(
+);
 
 // A slightly more advanced example
 let custom = data.query({
   sql: `SELECT * FROM myOtherTable WHERE id = :id AND active = :isActive`,
   continueAfterTimeout: true,
-  database: 'myOtherDatabase',
-  parameters: [
-    { id: 123},
-    { name: 'isActive', value: { booleanValue: true } }
-  ]
-})
+  database: "myOtherDatabase",
+  parameters: [{ id: 123 }, { name: "isActive", value: { booleanValue: true } }]
+});
 ```
 
 ## Why do I need this?
@@ -163,6 +158,7 @@ Below is a table containing all of the possible configuration options for the `d
 | hydrateColumnNames | `boolean` | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values.                                                                                             | `true`  |
 | keepAlive          | `boolean` | Enables HTTP Keep-Alive for calls to the AWS SDK. This dramatically decreases the latency of subsequent calls.                                                                                                                      | `true`  |
 | options            | `object`  | An _optional_ configuration object that is passed directly into the RDSDataService constructor. See [here](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html#constructor-property) for available options. | `{}`    |
+| region             | `string`  | _Optional_ aws region to use                                                                                                                                                                                                        |         |
 
 ## How to use this module
 
