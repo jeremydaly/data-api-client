@@ -433,6 +433,11 @@ module.exports = (params) => {
     AWS.config.update({ httpOptions: { agent: sslAgent } })
   }
 
+  // Update the AWS http agent with the region
+  if (typeof params.region !== false) {
+    AWS.congif.update({ region: params.region });
+  }
+
   // Set the configuration for this instance
   const config = {
 
