@@ -434,7 +434,7 @@ module.exports = (params) => {
   }
 
   // Update the AWS http agent with the region
-  if (typeof params.region !== false) {
+  if (typeof params.region === "string") {
     AWS.config.update({ region: params.region });
   }
 
