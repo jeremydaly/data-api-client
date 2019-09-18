@@ -170,6 +170,7 @@ const sqlString = require('sqlstring')
     : typeof val === 'boolean' ? 'booleanValue'
     : typeof val === 'number' && parseInt(val) === val ? 'longValue'
     : typeof val === 'number' && parseFloat(val) === val ? 'doubleValue'
+    : val instanceof Date ? 'stringValue'
     : val === null ? 'isNull'
     : Buffer.isBuffer(val) ? 'blobValue'
     // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
