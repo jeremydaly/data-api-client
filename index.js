@@ -188,7 +188,8 @@ const sqlString = require('sqlstring')
 
   const formatValue = (value) => {
     return value === null ? true :
-      value instanceof Date ? value.toISOString() : value
+      value instanceof Date ? value.toISOString().split("T")[0] :
+      value
   }
 
   // Formats the results of a query response
