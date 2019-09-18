@@ -181,11 +181,15 @@ const sqlString = require('sqlstring')
     return {
       name,
       value: {
-        [type ? type : error(`'${name}'' is an invalid type`)] :
-          type === 'isNull' ? true : value
+        [type ? type : error(`'${name}'' is an invalid type`)] : formatValue(value)
       }
     }
   } // end formatType
+
+  const formatValue = (value) => {
+    return value === null ? true :
+      value instanceof Date ? value.toISOString() : value
+  }
 
   // Formats the results of a query response
   // TODO: Support generatedFields (use case insertId)
