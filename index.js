@@ -165,18 +165,19 @@ const sqlString = require('sqlstring')
 
   // Gets the value type and returns the correct value field name
   // TODO: Support more types as the are released
-  const getType = val =>
-    typeof val === 'string' ? 'stringValue'
-    : typeof val === 'boolean' ? 'booleanValue'
-    : typeof val === 'number' && parseInt(val) === val ? 'longValue'
-    : typeof val === 'number' && parseFloat(val) === val ? 'doubleValue'
-    : val instanceof Date ? 'stringValue'
-    : val === null ? 'isNull'
-    : Buffer.isBuffer(val) ? 'blobValue'
-    // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
-    : undefined
+  const getType = val => {
+    return typeof val === 'string' ? 'stringValue'
+      : typeof val === 'boolean' ? 'booleanValue'
+      : typeof val === 'number' && parseInt(val) === val ? 'longValue'
+      : typeof val === 'number' && parseFloat(val) === val ? 'doubleValue'
+      : val instanceof Date ? 'stringValue'
+      : val === null ? 'isNull'
+      : Buffer.isBuffer(val) ? 'blobValue'
+      // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
+      : undefined;
+  }
 
-  // Creates a standard Data API parameter using the supplied inputs
+// Creates a standard Data API parameter using the supplied inputs
   const formatType = (name,value,type) => {
     return {
       name,
