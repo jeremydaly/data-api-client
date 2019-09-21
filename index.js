@@ -179,6 +179,8 @@ const sqlString = require('sqlstring')
 
 // Creates a standard Data API parameter using the supplied inputs
   const formatType = (name,value,type) => {
+    console.log(`parameter ${name} is formatted as ${formatValue(value)}`)
+
     return {
       name,
       value: {
