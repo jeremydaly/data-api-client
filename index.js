@@ -428,15 +428,25 @@ module.exports = (params) => {
     : params.options !== undefined ? error(`'options' must be an object`)
     : {}
 
-  // Update the default AWS http agent with our new sslAgent
-  if (typeof params.keepAlive !== false) {
-    AWS.config.update({ httpOptions: { agent: sslAgent } })
+  // Check if http is wanted for local development
+  const http = typeof params.http === 'boolean' ? params.http 
+  : params.http !== undefined ? error(`'usehttp' must be a boolean`) 
+  : false
+
+  if (http) {
+    AWS.config.update({ sslEnabled: false })
+  } else {
+    // Update the default AWS http agent with our new sslAgent
+    if (typeof params.keepAlive !== false) {
+      AWS.config.update({ httpOptions: { agent: sslAgent } })
+    }  
   }
 
   // Update the AWS http agent with the region
   if (typeof params.region === "string") {
     AWS.config.update({ region: params.region });
   }
+
 
   // Set the configuration for this instance
   const config = {
