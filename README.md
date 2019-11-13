@@ -156,6 +156,7 @@ Below is a table containing all of the possible configuration options for the `d
 | resourceArn | `string` | The ARN of your Aurora Serverless Cluster. This value is *required*, but can be overridden when querying. |  |
 | secretArn | `string` | The ARN of the secret associated with your database credentials. This is *required*, but can be overridden when querying. |  |
 | database | `string` | *Optional* default database to use with queries. Can be overridden when querying. |  |
+| http | `boolean` | *Optional* allow http endpoint for Data API for local development. |  |
 | hydrateColumnNames | `boolean` | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values. | `true` |
 | keepAlive | `boolean` | Enables HTTP Keep-Alive for calls to the AWS SDK. This dramatically decreases the latency of subsequent calls. | `true` |
 | options | `object` | An *optional* configuration object that is passed directly into the RDSDataService constructor. See [here](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html#constructor-property) for available options.  | `{}` |
