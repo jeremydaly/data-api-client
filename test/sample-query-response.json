@@ -1,0 +1,143 @@
+{
+  "columnMetadata": [
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": true,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "id",
+      "name": "id",
+      "nullable": 0,
+      "precision": 10,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 4,
+      "typeName": "INT UNSIGNED"
+    },
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": false,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "name",
+      "name": "name",
+      "nullable": 1,
+      "precision": 100,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 12,
+      "typeName": "VARCHAR"
+    },
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": false,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "description",
+      "name": "description",
+      "nullable": 1,
+      "precision": 255,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 12,
+      "typeName": "VARCHAR"
+    },
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": false,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "created",
+      "name": "created",
+      "nullable": 0,
+      "precision": 19,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 93,
+      "typeName": "TIMESTAMP"
+    },
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": false,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "modified",
+      "name": "modified",
+      "nullable": 0,
+      "precision": 19,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 93,
+      "typeName": "TIMESTAMP"
+    },
+    {
+      "arrayBaseColumnType": 0,
+      "isAutoIncrement": false,
+      "isCaseSensitive": false,
+      "isCurrency": false,
+      "isSigned": false,
+      "label": "deleted",
+      "name": "deleted",
+      "nullable": 1,
+      "precision": 19,
+      "scale": 0,
+      "schemaName": "",
+      "tableName": "cats",
+      "type": 93,
+      "typeName": "TIMESTAMP"
+    }
+  ],
+  "numberOfRecordsUpdated": 0,
+  "records": [
+    [
+      {
+        "longValue": 1
+      },
+      {
+        "stringValue": "Category 1"
+      },
+      {
+        "isNull": true
+      },
+      {
+        "stringValue": "2019-11-12 22:00:11"
+      },
+      {
+        "stringValue": "2019-11-12 22:15:25"
+      },
+      {
+        "isNull": true
+      }
+    ],
+    [
+      {
+        "longValue": 2
+      },
+      {
+        "stringValue": "Category 2"
+      },
+      {
+        "stringValue": "Description of Category 2"
+      },
+      {
+        "stringValue": "2019-11-12 22:17:11"
+      },
+      {
+        "stringValue": "2019-11-12 22:21:36"
+      },
+      {
+        "isNull": true
+      }
+    ]
+  ]
+}
