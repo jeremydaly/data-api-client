@@ -95,12 +95,12 @@ const prepareParams = ({ secretArn,resourceArn },args) => {
 // Utility function for removing certain keys from an object
 const omit = (obj,values) => Object.keys(obj).reduce((acc,x) =>
   values.includes(x) ? acc : Object.assign(acc,{ [x]: obj[x] })
-  ,{})
+,{})
 
 // Utility function for picking certain keys from an object
 const pick = (obj,values) => Object.keys(obj).reduce((acc,x) =>
   values.includes(x) ? Object.assign(acc,{ [x]: obj[x] }) : acc
-  ,{})
+,{})
 
 // Utility function for flattening arrays - deprecated
 // const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
@@ -110,7 +110,7 @@ const normalizeParams = params => params.reduce((acc,p) =>
   Array.isArray(p) ? acc.concat([normalizeParams(p)])
   : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
   : acc.concat(splitParams(p))
-  ,[]) // end reduce
+,[]) // end reduce
 
 // // Annotate parameters with correct types
 // const annotateParams = params => params.reduce((acc,p) =>
