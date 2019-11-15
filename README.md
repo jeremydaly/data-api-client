@@ -3,8 +3,6 @@
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 [![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 
-**THIS PROJECT IS IN BETA. I WOULD LOVE YOUR FEEDBACK! PLEASE FEEL FREE TO CONTACT ME ON TWITTER [@jeremy_daly](https://twitter.com/jeremy_daly)**
-
 The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html]) for the Data API. It also promisifies the `AWS.RDSDataService` client to make working with `async/await` or Promise chains easier AND dramatically simplifies **transactions**.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
@@ -100,45 +98,23 @@ let insert = await data.executeStatement({
 ).promise()
 ```
 
-Specifying all of those data types in the parameters is a bit clunky, plus every query requires you to pass in the `secretArn`, `resourceArn`, `database`, and any other method parameters you might need.
-
-In addition to requiring types for parameters, it also returns each field as an object containing all possible data types, like this:
+Specifying all of those data types in the parameters is a bit clunky. In addition to requiring types for parameters, it also returns each field as an object with its value assigned to a key that represents its data type, like this:
 
 ```javascript
 { // id field
-  "blobValue": null,
-  "booleanValue": null,
-  "doubleValue": null,
-  "isNull": null,
-  "longValue": 9,
-  "stringValue": null
+  "longValue": 9
 },
 { // name field
-  "blobValue": null,
-  "booleanValue": null,
-  "doubleValue": null,
-  "isNull": null,
-  "longValue": null,
   "stringValue": "Cousin Oliver"
 },
 { // age field
-  "blobValue": null,
-  "booleanValue": null,
-  "doubleValue": null,
-  "isNull": null,
-  "longValue": 10,
-  "stringValue": null
+  "longValue": 10
 },
 { // has_curls field
-  "blobValue": null,
-  "booleanValue": false,
-  "doubleValue": null,
-  "isNull": null,
-  "longValue": null,
-  "stringValue": null
+  "booleanValue": false
 }
 ```
-Not only are there no column names, but you have to remove all `null` fields and pull the value from the remaining data type. Lots of extra work that the **Data API Client** handles automatically for you. 😀
+Not only are there no column names, but you have to pull the value from the data type field. Lots of extra work that the **Data API Client** handles automatically for you. 😀
 
 ## Installation and Setup
 ```
@@ -156,11 +132,11 @@ Below is a table containing all of the possible configuration options for the `d
 | resourceArn | `string` | The ARN of your Aurora Serverless Cluster. This value is *required*, but can be overridden when querying. |  |
 | secretArn | `string` | The ARN of the secret associated with your database credentials. This is *required*, but can be overridden when querying. |  |
 | database | `string` | *Optional* default database to use with queries. Can be overridden when querying. |  |
-| http | `boolean` | *Optional* allow http endpoint for Data API for local development. |  |
 | hydrateColumnNames | `boolean` | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values. | `true` |
 | keepAlive | `boolean` | Enables HTTP Keep-Alive for calls to the AWS SDK. This dramatically decreases the latency of subsequent calls. | `true` |
+| sslEnabled | `boolean` | *Optional* Enables SSL HTTP endpoint. Can be disable for local development. | `true` |
 | options | `object` | An *optional* configuration object that is passed directly into the RDSDataService constructor. See [here](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html#constructor-property) for available options.  | `{}` |
-| region | `string`  | _Optional_ aws region to use | aws-sdk default |
+| region | `string`  | *Optional* AWS region to use. | `aws-sdk default` |
 
 ## How to use this module
 
@@ -321,7 +297,7 @@ let result = await data.executeStatement({
 ```
 
 ## Data API Limitations / Wonkiness
-The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outline some of my findings below.
+The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outlined some of my findings below.
 
 ### You can't send in an array of values
 The GitHub repo for RDSDataService mentions something about `arrayValues`, but I've been unable to get arrays (including TypedArrays and Buffers) to be used for parameters with `IN` clauses. For example, the following query will **NOT** work:
@@ -340,8 +316,8 @@ let result = await data.executeStatement({
 
 I'm using `blobValue` because it's the only generic value field. You could send it in as a string, but then it only uses the first value. Hopefully they will add an `arrayValues` or something similar to support this in the future.
 
-### Named parameters MUST be sent in order
-Read that again if you need to. So parameters have to be **BOTH** named and *in order*, otherwise the query **may** fail. I stress **may**, because if you send in two fields of compatible type in the wrong order, the query will work, just with your values flipped. 🤦🏻‍♂️ Watch out for this one.
+### ~~Named parameters MUST be sent in order~~
+~~Read that again if you need to. So parameters have to be **BOTH** named and *in order*, otherwise the query **may** fail. I stress **may**, because if you send in two fields of compatible type in the wrong order, the query will work, just with your values flipped. 🤦🏻‍♂️ Watch out for this one.~~ 👈This was fixed!
 
 ### You can't parameterize identifiers
 If you want to use dynamic column or field names, there is no way to do it automatically with the Data API. The `mysql` package, for example, lets you use `??` to dynamically insert escaped identifiers. Something like the example below is currently not possible.
@@ -437,4 +413,4 @@ Statement:
 
 
 ## Contributions
-Contributions, ideas and bug reports are welcome and greatly appreciated. Please add [issues](https://github.com/jeremydaly/data-api-client/issues) for suggestions and bug reports or create a pull request.
+Contributions, ideas and bug reports are welcome and greatly appreciated. Please add [issues](https://github.com/jeremydaly/data-api-client/issues) for suggestions and bug reports or create a pull request. You can also contact me on Twitter: [@jeremy_daly](https://twitter.com/jeremy_daly).
