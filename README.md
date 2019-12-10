@@ -134,10 +134,13 @@ Below is a table containing all of the possible configuration options for the `d
 | secretArn | `string` | The ARN of the secret associated with your database credentials. This is *required*, but can be overridden when querying. |  |
 | database | `string` | *Optional* default database to use with queries. Can be overridden when querying. |  |
 | hydrateColumnNames | `boolean` | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values. | `true` |
-| keepAlive | `boolean` | Enables HTTP Keep-Alive for calls to the AWS SDK. This dramatically decreases the latency of subsequent calls. | `true` |
-| sslEnabled | `boolean` | *Optional* Enables SSL HTTP endpoint. Can be disable for local development. | `true` |
 | options | `object` | An *optional* configuration object that is passed directly into the RDSDataService constructor. See [here](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html#constructor-property) for available options.  | `{}` |
-| region | `string`  | *Optional* AWS region to use. | `aws-sdk default` |
+
+### Connection Reuse
+
+It is recommended to enable connection reuse as this dramatically decreases the latency of subsequent calls to the AWS API. This can be done by setting an environment variable
+`AWS_NODEJS_CONNECTION_REUSE_ENABLED=1`. For more information see the [AWS SDK documentation](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/node-reusing-connections.html).
+
 
 ## How to use this module
 
