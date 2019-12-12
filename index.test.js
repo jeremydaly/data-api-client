@@ -31,12 +31,11 @@ describe('utility', () => {
     expect(result).toEqual({ a: 1, c: 3 })
   })
 
-  // Deprecated
-  // test('flatten', async () => {
-  //   const flatten = dataApiClient.__get__('flatten')
-  //   let result = flatten([[1,2,3],4,[5,6],7,8])
-  //   expect(result).toEqual([1,2,3,4,5,6,7,8])
-  // })
+  test('flatten', async () => {
+    const flatten = dataApiClient.__get__('flatten')
+    let result = flatten([[1,2,3],4,[5,6],7,8])
+    expect(result).toEqual([1,2,3,4,5,6,7,8])
+  })
 
 }) // end utility
 

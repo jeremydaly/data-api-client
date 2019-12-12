@@ -102,8 +102,8 @@ const pick = (obj,values) => Object.keys(obj).reduce((acc,x) =>
   values.includes(x) ? Object.assign(acc,{ [x]: obj[x] }) : acc
 ,{})
 
-// Utility function for flattening arrays - deprecated
-// const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
+// Utility function for flattening arrays
+const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
 
 // Normize parameters so that they are all in standard format
 const normalizeParams = params => params.reduce((acc,p) =>
@@ -111,15 +111,6 @@ const normalizeParams = params => params.reduce((acc,p) =>
   : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
   : acc.concat(splitParams(p))
 ,[]) // end reduce
-
-// // Annotate parameters with correct types
-// const annotateParams = params => params.reduce((acc,p) =>
-//   Array.isArray(p) ? acc.concat([annotateParams(p)])
-//     : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
-//     : acc.concat(
-//       formatParam(Object.keys(p)[0],Object.values(p)[0])
-//     )
-// ,[]) // end reduce
 
 
 // Prepare parameters
@@ -294,10 +285,10 @@ const mergeConfig = (initialConfig,args) =>
 /********************************************************************/
 
 // Query function (use standard form for `this` context)
-const query = async function(config,...args) {
+const query = async function(config,..._args) {
 
-  // Deprecated this since it was collapsing batches
-  // const args = flatten(_args)
+  // Flatten array if nested arrays (fixes #30)
+  const args = Array.isArray(_args[0]) ? flatten(_args) : _args
 
   // Parse and process sql
   const sql = parseSQL(args)
@@ -338,8 +329,6 @@ const query = async function(config,...args) {
     // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
       : config.RDS.executeStatement(params).promise())
-
-    // FOR DEBUGGING: console.log(JSON.stringify(result,null,2))
 
     // Format and return the results
     return formatResults(
