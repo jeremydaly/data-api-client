@@ -186,9 +186,24 @@ const sqlString = require('sqlstring')
     }
   } // end formatType
 
+  const formatDate = (date) => {
+    const padNumber = (number) => number > 9 ? '0' + number : number
+
+
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+
+    const hour = date.getHours()
+    const minutes = date.getMinutes()
+    const seconds = date.getSeconds()
+
+    return year + '-' + padNumber(month) + '-' + padNumber(day) + ' ' + padNumber(hour) + ':' + padNumber(minutes) + ':' + padNumber(seconds)
+  }
+
   const formatValue = (value) => {
     return value === null ? true :
-      value instanceof Date ? sqlString.dateToString(value) :
+      value instanceof Date ? formatDate(value) :
       value
   }
 
