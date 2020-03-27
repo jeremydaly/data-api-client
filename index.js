@@ -187,7 +187,7 @@ const sqlString = require('sqlstring')
   } // end formatType
 
   const formatDate = (date) => {
-    const padNumber = (number) => number < 9 ? '0' + number : number
+    const padNumber = (number) => number <= 9 ? '0' + number : number
 
 
     const year = date.getFullYear()
