@@ -1,4 +1,4 @@
-# Aurora Serverless Data API Client
+![Aurora Serverless Data API Client](https://user-images.githubusercontent.com/2053544/79285017-44053500-7e8a-11ea-8515-998ccf9c2d2e.png)
 
 [![Build Status](https://travis-ci.org/jeremydaly/data-api-client.svg?branch=master)](https://travis-ci.org/jeremydaly/data-api-client)
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
