@@ -1,7 +1,17 @@
-# Dependency directories
-node_modules
+# Dependencies
+**/node_modules/
 
-# Optional npm cache directory
-.npm
+# Environment
+**/.env
 
-dump.rdb
+# Logs
+**/npm-debug.log*
+**/.npm
+**/dump.rdb
+
+# Editors and IDEs
+**/.idea
+**/.vscode/*
+
+# Misc
+**/.DS_Store

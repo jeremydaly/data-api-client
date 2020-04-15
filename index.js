@@ -221,51 +221,66 @@ const formatResults = (
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
-const formatRecords = (recs,columns) => {
-
-  // Create map for efficient value parsing
-  let fmap = recs && recs[0] ? recs[0].map((x,i) => {
-    return Object.assign({},
-      columns ? { label: columns[i].label } : {} ) // add column labels
-  }) : {}
-
+const formatRecords = (recs, columns) => {
   // Map over all the records (rows)
-  return recs ? recs.map(rec => {
+  return recs
+    ? recs.map((rec) => {
+      // Reduce each field in the record (row)
 
-    // Reduce each field in the record (row)
-    return rec.reduce((acc,field,i) => {
-
-      // If the field is null, always return null
-      if (field.isNull === true) {
-        return columns ? // object if hydrate, else array
-          Object.assign(acc,{ [fmap[i].label]: null })
-          : acc.concat(null)
-
-      // If the field is mapped, return the mapped field
-      } else if (fmap[i] && fmap[i].field) {
-        return columns ? // object if hydrate, else array
-          Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
-          : acc.concat(field[fmap[i].field])
-
-      // Else discover the field type
-      } else {
-
-        // Look for non-null fields
-        Object.keys(field).map(type => {
-          if (type !== 'isNull' && field[type] !== null) {
-            fmap[i]['field'] = type
-          }
-        })
-
-        // Return the mapped field (this should NEVER be null)
-        return columns ? // object if hydrate, else array
-          Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
-          : acc.concat(field[fmap[i].field])
-      }
-
-    }, columns ? {} : []) // init object if hydrate, else init array
-  }) : [] // empty record set returns an array
+      return columns ? formatHydrate(rec, columns) : formatDefault(rec) // object if hydrate, else array
+    })
+    : [] // empty record set returns an array
 } // end formatRecords
+
+// formats record as an object
+const formatHydrate= (rec, column) => {
+  let formattedRec = {}
+
+  rec.forEach((field, i) => {
+    // If the field is null, always return null
+    if (field.isNull === true) {
+      formattedRec[column[i].label] = null
+    } else {
+      formattedRec[column[i].label] = formatNonNullValue(field)
+    }
+  })
+
+  return formattedRec
+}
+
+// formats record as an array
+const formatDefault = (rec) => {
+  let formattedRec = []
+
+  rec.forEach((field) => {
+    // If the field is null, always return null
+    if (field.isNull === true) {
+      formattedRec.push(null)
+    } else {
+      formattedRec.push(formatNonNullValue(field))
+    }
+  })
+
+  return formattedRec
+}
+
+// returns the value for primitives and handles Array types
+const formatNonNullValue = (value) => {
+  const actualValue = Object.values(value)[0] // value always has only one element, the value of which is what's needed
+
+  // if arrayValue, it will be an object, so recurse this function with the actual value
+  if(value.arrayValue) {
+    return formatNonNullValue(actualValue)
+  }
+
+  // arrayValues denotes an array of elements inside an arrayValue, needs to be mapped to recurse each array element
+  if(value.arrayValues) {
+    return actualValue.map(subValue => formatNonNullValue(subValue))
+  }
+
+  // if it's neither of the above types, it means it's a primitive, so it's safe to return
+  return actualValue
+}
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
