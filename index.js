@@ -83,6 +83,19 @@ const parseHydrate = (config,args) =>
   : args[0].hydrateColumnNames ? error('\'hydrateColumnNames\' must be a boolean.')
   : config.hydrateColumnNames
 
+// Parse the supplied format options, or default to config
+const parseFormatOptions = (config,args) =>
+  typeof args[0].formatOptions === 'object' ? {
+      deserializeDate: typeof args[0].formatOptions.deserializeDate === 'boolean' ? args[0].formatOptions.deserializeDate
+      : args[0].formatOptions.deserializeDate ? error('\'formatOptions.deserializeDate\' must be a boolean.')
+      : config.formatOptions.deserializeDate,
+      treatAsLocalDate: typeof args[0].formatOptions.treatAsLocalDate == 'boolean' ? args[0].formatOptions.treatAsLocalDate
+      : args[0].formatOptions.treatAsLocalDate ? error('\'formatOptions.treatAsLocalDate\' must be a boolean.')
+      : config.formatOptions.treatAsLocalDate
+    }
+    : args[0].formatOptions ? error('\'formatOptions\' must be an object.')
+    : config.formatOptions
+
 // Prepare method params w/ supplied inputs if an object is passed
 const prepareParams = ({ secretArn,resourceArn },args) => {
   return Object.assign(
@@ -114,16 +127,16 @@ const normalizeParams = params => params.reduce((acc,p) =>
 
 
 // Prepare parameters
-const processParams = (sql,sqlParams,params,row=0) => {
+const processParams = (sql,sqlParams,params,formatOptions,row=0) => {
   return {
     processedParams: params.reduce((acc,p) => {
       if (Array.isArray(p)) {
-        let result = processParams(sql,sqlParams,p,row)
+        let result = processParams(sql,sqlParams,p,formatOptions,row)
         if (row === 0) { sql = result.escapedSql; row++ }
         return acc.concat([result.processedParams])
       } else if (sqlParams[p.name]) {
         if (sqlParams[p.name].type === 'n_ph') {
-          acc.push(formatParam(p.name,p.value))
+          acc.push(formatParam(p.name,p.value,formatOptions))
         } else if (row === 0) {
           let regex = new RegExp('::' + p.name + '\\b','g')
           sql = sql.replace(regex,sqlString.escapeId(p.value))
@@ -138,7 +151,7 @@ const processParams = (sql,sqlParams,params,row=0) => {
 }
 
 // Converts parameter to the name/value format
-const formatParam = (n,v) => formatType(n,v,getType(v))
+const formatParam = (n,v,formatOptions) => formatType(n,v,getType(v),getTypeHint(v),formatOptions)
 
 // Converts object params into name/value format
 const splitParams = p => Object.keys(p).reduce((arr,x) =>
@@ -174,6 +187,7 @@ const getType = val =>
   : typeof val === 'number' && parseInt(val) === val ? 'longValue'
   : typeof val === 'number' && parseFloat(val) === val ? 'doubleValue'
   : val === null ? 'isNull'
+  : isDate(val) ? 'stringValue'
   : Buffer.isBuffer(val) ? 'blobValue'
   // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
   // TODO: there is a 'structValue' now for postgres
@@ -182,19 +196,55 @@ const getType = val =>
     && supportedTypes.includes(Object.keys(val)[0]) ? null
   : undefined
 
+// Hint to specify the underlying object type for data type mapping
+const getTypeHint = val =>
+  isDate(val) ? 'TIMESTAMP' : undefined
+  
+const isDate = val =>
+  val instanceof Date
+
 // Creates a standard Data API parameter using the supplied inputs
-const formatType = (name,value,type) => {
+const formatType = (name,value,type,typeHint,formatOptions) => {
   return Object.assign(
-    { name },
+    { name, typeHint },
     type === null ? { value }
     : {
       value: {
         [type ? type : error(`'${name}' is an invalid type`)]
-        : type === 'isNull' ? true : value
+        : type === 'isNull' ? true
+        : isDate(value) ? formatToTimeStamp(value, formatOptions && formatOptions.treatAsLocalDate)
+        : value
       }
     }
   )
 } // end formatType
+
+// Formats the (UTC) date to the AWS accepted YYYY-MM-DD HH:MM:SS[.FFF] format
+// See https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html
+const formatToTimeStamp = (date, treatAsLocalDate) => {
+  const pad = (val,num=2) => '0'.repeat(num-(val + '').length) + val
+
+  const year = treatAsLocalDate ? date.getFullYear() : date.getUTCFullYear()
+  const month = (treatAsLocalDate ? date.getMonth() : date.getUTCMonth()) + 1 // Convert to human month
+  const day = treatAsLocalDate ? date.getDate() : date.getUTCDate()
+
+  const hours = treatAsLocalDate ? date.getHours() : date.getUTCHours()
+  const minutes = treatAsLocalDate ? date.getMinutes() : date.getUTCMinutes()
+  const seconds = treatAsLocalDate ? date.getSeconds() : date.getUTCSeconds()
+  const ms = treatAsLocalDate ? date.getMilliseconds() : date.getUTCMilliseconds()
+
+  const fraction = ms <= 0 ? '' : `.${pad(ms,3)}`
+
+  return `${year}-${pad(month+1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}${fraction}`
+}
+
+// Converts the string value to a Date object.
+// If standard TIMESTAMP format (YYYY-MM-DD[ HH:MM:SS[.FFF]]) without TZ + treatAsLocalDate=false then assume UTC Date
+// In all other cases convert value to datetime as-is (also values with TZ info)
+const formatFromTimeStamp = (value,treatAsLocalDate) =>
+  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d{3})?)?$/.test(value) ?
+    new Date(value + 'Z') :
+    new Date(value)
 
 // Formats the results of a query response
 const formatResults = (
@@ -206,13 +256,14 @@ const formatResults = (
     updateResults // ONLY on batchExecuteStatement
   },
   hydrate,
-  includeMeta
+  includeMeta,
+  formatOptions
 ) =>
   Object.assign(
     includeMeta ? { columnMetadata } : {},
     numberOfRecordsUpdated !== undefined && !records ? { numberOfRecordsUpdated } : {},
     records ? {
-      records: formatRecords(records, hydrate ? columnMetadata : false)
+      records: formatRecords(records, columnMetadata, hydrate, formatOptions)
     } : {},
     updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
     generatedFields && generatedFields.length > 0 ?
@@ -221,12 +272,12 @@ const formatResults = (
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
-const formatRecords = (recs,columns) => {
+const formatRecords = (recs,columns,hydrate,formatOptions) => {
 
   // Create map for efficient value parsing
   let fmap = recs && recs[0] ? recs[0].map((x,i) => {
     return Object.assign({},
-      columns ? { label: columns[i].label } : {} ) // add column labels
+      columns ? { label: columns[i].label, typeName: columns[i].typeName } : {} ) // add column label and typeName
   }) : {}
 
   // Map over all the records (rows)
@@ -237,15 +288,16 @@ const formatRecords = (recs,columns) => {
 
       // If the field is null, always return null
       if (field.isNull === true) {
-        return columns ? // object if hydrate, else array
+        return hydrate ? // object if hydrate, else array
           Object.assign(acc,{ [fmap[i].label]: null })
           : acc.concat(null)
 
       // If the field is mapped, return the mapped field
       } else if (fmap[i] && fmap[i].field) {
-        return columns ? // object if hydrate, else array
-          Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
-          : acc.concat(field[fmap[i].field])
+        const value = formatRecordValue(field[fmap[i].field],fmap[i].typeName,formatOptions)
+        return hydrate ? // object if hydrate, else array
+          Object.assign(acc,{ [fmap[i].label]: value })
+          : acc.concat(value)
 
       // Else discover the field type
       } else {
@@ -258,14 +310,23 @@ const formatRecords = (recs,columns) => {
         })
 
         // Return the mapped field (this should NEVER be null)
-        return columns ? // object if hydrate, else array
-          Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
-          : acc.concat(field[fmap[i].field])
+        const value = formatRecordValue(field[fmap[i].field],fmap[i].typeName,formatOptions)
+        return hydrate ? // object if hydrate, else array
+          Object.assign(acc,{ [fmap[i].label]: value })
+          : acc.concat(value)
       }
 
-    }, columns ? {} : []) // init object if hydrate, else init array
+    }, hydrate ? {} : []) // init object if hydrate, else init array
   }) : [] // empty record set returns an array
 } // end formatRecords
+
+// Format record value based on its value, the database column's typeName and the formatting options
+const formatRecordValue = (value,typeName,formatOptions) => 
+  formatOptions && formatOptions.deserializeDate &&
+  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName) 
+    ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE') 
+    : value
+
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
@@ -297,11 +358,14 @@ const query = async function(config,..._args) {
   // Parse hydration setting
   const hydrateColumnNames = parseHydrate(config,args)
 
+  // Parse data format settings
+  const formatOptions = parseFormatOptions(config,args)
+
   // Parse and normalize parameters
   const parameters = normalizeParams(parseParams(args))
 
   // Process parameters and escape necessary SQL
-  const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters)
+  const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters,formatOptions)
 
   // Determine if this is a batch request
   const isBatch = processedParams.length > 0
@@ -334,7 +398,8 @@ const query = async function(config,..._args) {
     return formatResults(
       result,
       hydrateColumnNames,
-      args[0].includeResultMetadata === true ? true : false
+      args[0].includeResultMetadata === true ? true : false,
+      formatOptions
     )
 
   } catch(e) {
@@ -481,6 +546,14 @@ module.exports = (params) => {
     hydrateColumnNames:
       typeof params.hydrateColumnNames === 'boolean' ?
         params.hydrateColumnNames : true,
+
+    // Value formatting options. For date the deserialization is enabled and (re)stored as UTC
+    formatOptions: {
+      deserializeDate:
+        typeof params.formatOptions === 'object' && params.formatOptions.deserializeDate === false ? false : true,
+      treatAsLocalDate:
+        typeof params.formatOptions === 'object' && params.formatOptions.treatAsLocalDate
+    },
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
