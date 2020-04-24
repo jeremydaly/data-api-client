@@ -206,7 +206,7 @@ const isDate = val =>
 // Creates a standard Data API parameter using the supplied inputs
 const formatType = (name,value,type,typeHint,formatOptions) => {
   return Object.assign(
-    { name, typeHint },
+    typeHint != null ? { name, typeHint } : { name },
     type === null ? { value }
     : {
       value: {
@@ -235,7 +235,7 @@ const formatToTimeStamp = (date, treatAsLocalDate) => {
 
   const fraction = ms <= 0 ? '' : `.${pad(ms,3)}`
 
-  return `${year}-${pad(month+1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}${fraction}`
+  return `${year}-${pad(month)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}${fraction}`
 }
 
 // Converts the string value to a Date object.
