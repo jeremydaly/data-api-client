@@ -253,7 +253,13 @@ const formatRecords = (recs,columns) => {
         // Look for non-null fields
         Object.keys(field).map(type => {
           if (type !== 'isNull' && field[type] !== null) {
-            fmap[i]['field'] = type
+            if (type === 'arrayValue') {
+              field = field.arrayValue
+              const [arrayType] = Object.keys(field)
+              fmap[i]['field'] = arrayType
+            } else {
+              fmap[i]['field'] = type
+            }
           }
         })
 
