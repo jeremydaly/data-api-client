@@ -19,6 +19,8 @@ const AWS = require('aws-sdk')
 // Require sqlstring to add additional escaping capabilities
 const sqlString = require('sqlstring')
 
+const { snakeToCamel } = require('./utils')
+
 // Supported value types in the Data API
 const supportedTypes = [
   'arrayValue',
@@ -222,6 +224,8 @@ const formatResults = (
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
 const formatRecords = (recs,columns) => {
+
+  columns.filter(c => c.label.includes('_')).forEach(c => c.label = snakeToCamel(c.label))
 
   // Create map for efficient value parsing
   let fmap = recs && recs[0] ? recs[0].map((x,i) => {
