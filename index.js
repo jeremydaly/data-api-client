@@ -19,6 +19,8 @@ const AWS = require('aws-sdk')
 // Require sqlstring to add additional escaping capabilities
 const sqlString = require('sqlstring')
 
+const { snakeToCamel } = require('./utils')
+
 // Supported value types in the Data API
 const supportedTypes = [
   'arrayValue',
@@ -206,13 +208,14 @@ const formatResults = (
     updateResults // ONLY on batchExecuteStatement
   },
   hydrate,
-  includeMeta
+  includeMeta,
+  convertSnakeToCamel
 ) =>
   Object.assign(
     includeMeta ? { columnMetadata } : {},
     numberOfRecordsUpdated !== undefined && !records ? { numberOfRecordsUpdated } : {},
     records ? {
-      records: formatRecords(records, hydrate ? columnMetadata : false)
+      records: formatRecords(records, hydrate ? columnMetadata : false, convertSnakeToCamel)
     } : {},
     updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
     generatedFields && generatedFields.length > 0 ?
@@ -221,7 +224,12 @@ const formatResults = (
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
-const formatRecords = (recs,columns) => {
+const formatRecords = (recs,columns ,convertSnakeToCamel) => {
+
+  if(convertSnakeToCamel){
+    columns.filter(c => c.label.includes('_')).forEach(c => c.label = snakeToCamel(c.label))
+  }
+  
 
   // Create map for efficient value parsing
   let fmap = recs && recs[0] ? recs[0].map((x,i) => {
@@ -340,7 +348,8 @@ const query = async function(config,..._args) {
     return formatResults(
       result,
       hydrateColumnNames,
-      args[0].includeResultMetadata === true ? true : false
+      args[0].includeResultMetadata === true ? true : false,
+      config.convertSnakeToCamel
     )
 
   } catch(e) {
@@ -490,7 +499,9 @@ module.exports = (params) => {
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: new AWS.RDSDataService(options)
+    RDS: new AWS.RDSDataService(options),
+
+    convertSnakeToCamel: params.convertSnakeToCamel || false,
 
   } // end config
 
