@@ -20,7 +20,7 @@ declare module 'data-api-client' {
 
     interface iQuery<T> {
         (sql: string, params?: [] | unknown): Promise<T>; // params can be [] or {}
-        (obj: { sql: string; parameters: [] | unknown; database: string; hydrateColumnNames?: boolean }): Promise<T>;
+        (obj: { sql: string; parameters: [] | unknown; database?: string; hydrateColumnNames?: boolean }): Promise<T>;
     }
 
     export interface iDataAPIClient {
