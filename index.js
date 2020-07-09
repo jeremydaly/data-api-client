@@ -86,15 +86,15 @@ const parseHydrate = (config,args) =>
 // Parse the supplied format options, or default to config
 const parseFormatOptions = (config,args) =>
   typeof args[0].formatOptions === 'object' ? {
-      deserializeDate: typeof args[0].formatOptions.deserializeDate === 'boolean' ? args[0].formatOptions.deserializeDate
-      : args[0].formatOptions.deserializeDate ? error('\'formatOptions.deserializeDate\' must be a boolean.')
-      : config.formatOptions.deserializeDate,
-      treatAsLocalDate: typeof args[0].formatOptions.treatAsLocalDate == 'boolean' ? args[0].formatOptions.treatAsLocalDate
-      : args[0].formatOptions.treatAsLocalDate ? error('\'formatOptions.treatAsLocalDate\' must be a boolean.')
-      : config.formatOptions.treatAsLocalDate
-    }
-    : args[0].formatOptions ? error('\'formatOptions\' must be an object.')
-    : config.formatOptions
+    deserializeDate: typeof args[0].formatOptions.deserializeDate === 'boolean' ? args[0].formatOptions.deserializeDate
+    : args[0].formatOptions.deserializeDate ? error('\'formatOptions.deserializeDate\' must be a boolean.')
+    : config.formatOptions.deserializeDate,
+    treatAsLocalDate: typeof args[0].formatOptions.treatAsLocalDate == 'boolean' ? args[0].formatOptions.treatAsLocalDate
+    : args[0].formatOptions.treatAsLocalDate ? error('\'formatOptions.treatAsLocalDate\' must be a boolean.')
+    : config.formatOptions.treatAsLocalDate
+  }
+  : args[0].formatOptions ? error('\'formatOptions\' must be an object.')
+  : config.formatOptions
 
 // Prepare method params w/ supplied inputs if an object is passed
 const prepareParams = ({ secretArn,resourceArn },args) => {
@@ -258,21 +258,20 @@ const formatResults = (
   hydrate,
   includeMeta,
   formatOptions
-) =>
-  Object.assign(
-    includeMeta ? { columnMetadata } : {},
-    numberOfRecordsUpdated !== undefined && !records ? { numberOfRecordsUpdated } : {},
-    records ? {
-      records: formatRecords(records, columnMetadata, hydrate, formatOptions)
-    } : {},
-    updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
-    generatedFields && generatedFields.length > 0 ?
-      { insertId: generatedFields[0].longValue } : {}
-  )
+) => Object.assign(
+  includeMeta ? { columnMetadata } : {},
+  numberOfRecordsUpdated !== undefined && !records ? { numberOfRecordsUpdated } : {},
+  records ? {
+    records: formatRecords(records, columnMetadata, hydrate, formatOptions)
+  } : {},
+  updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
+  generatedFields && generatedFields.length > 0 ?
+    { insertId: generatedFields[0].longValue } : {}
+)
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
-const formatRecords = (recs,columns,hydrate,formatOptions) => {
+const formatRecords = (recs,columns,hydrate,formatOptions) => {  
 
   // Create map for efficient value parsing
   let fmap = recs && recs[0] ? recs[0].map((x,i) => {
@@ -321,12 +320,10 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
 } // end formatRecords
 
 // Format record value based on its value, the database column's typeName and the formatting options
-const formatRecordValue = (value,typeName,formatOptions) => 
-  formatOptions && formatOptions.deserializeDate &&
+const formatRecordValue = (value,typeName,formatOptions) => formatOptions && formatOptions.deserializeDate &&
   ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName) 
-    ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE') 
-    : value
-
+  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE') 
+  : value
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
@@ -388,7 +385,7 @@ const query = async function(config,..._args) {
     config.transactionId ? { transactionId: config.transactionId } : {}
   ) // end params
 
-  try { // attempt to run the query
+  try { // attempt to run the query  
 
     // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
@@ -435,6 +432,7 @@ const transaction = (config,_args) => {
     {
       database: parseDatabase(config,args), // add database
       hydrateColumnNames: parseHydrate(config,args), // add hydrate
+      formatOptions: parseFormatOptions(config,args), // add formatOptions
       RDS: config.RDS // reference the RDSDataService instance
     }
   )
@@ -559,7 +557,7 @@ module.exports = (params) => {
     // Create an instance of RDSDataService
     RDS: new AWS.RDSDataService(options)
 
-  } // end config
+  } // end config 
 
   // Return public methods
   return {
