@@ -520,7 +520,7 @@ describe('querying', () => {
 
     test('with columnMetadata', async () => {
       let { records, columnMetadata } = require('./test/sample-query-response.json')
-      let result = formatRecords(records, columnMetadata)
+      let result = formatRecords(records, columnMetadata, true)
       expect(result).toEqual([
         {
           created: '2019-11-12 22:00:11',
@@ -606,6 +606,31 @@ describe('formatResults', () => {
     })
   })
 
+  test('select (hydrate) with date deserialization', async () => {
+    let response = require('./test/sample-query-response.json')
+    let result = formatResults(response,true,false,{deserializeDate: true})
+    expect(result).toEqual({
+      records: [
+        {
+          created: new Date('2019-11-12T22:00:11Z'),
+          deleted: null,
+          description: null,
+          id: 1,
+          modified: new Date('2019-11-12T22:15:25Z'),
+          name: 'Category 1'
+        },
+        {
+          created: new Date('2019-11-12T22:17:11Z'),
+          deleted: null,
+          description: 'Description of Category 2',
+          id: 2,
+          modified: new Date('2019-11-12T22:21:36Z'),
+          name: 'Category 2'
+        }
+      ]
+    })
+  })
+
 
   test('select (no hydrate)', async () => {
     let response = require('./test/sample-query-response.json')
@@ -627,6 +652,28 @@ describe('formatResults', () => {
       records: [
         [ 1, 'Category 1', null, '2019-11-12 22:00:11', '2019-11-12 22:15:25', null ],
         [ 2, 'Category 2', 'Description of Category 2', '2019-11-12 22:17:11', '2019-11-12 22:21:36', null ]
+      ]
+    })
+  })
+
+  test('select (with date deserialization to UTC)', async () => {
+    let response = require('./test/sample-query-response.json')
+    let result = formatResults(response,false,false, { deserializeDate: true })
+    expect(result).toEqual({
+      records: [
+        [ 1, 'Category 1', null, new Date('2019-11-12T22:00:11.000Z'), new Date('2019-11-12T22:15:25.000Z'), null ],
+        [ 2, 'Category 2', 'Description of Category 2', new Date('2019-11-12T22:17:11.000Z'), new Date('2019-11-12T22:21:36.000Z'), null ]
+      ]
+    })
+  })
+
+  test('select (with date deserialization to local TZ)', async () => {
+    let response = require('./test/sample-query-response.json')
+    let result = formatResults(response,false,false, { deserializeDate: true, treatAsLocalDate: true })
+    expect(result).toEqual({
+      records: [
+        [ 1, 'Category 1', null, new Date('2019-11-12 22:00:11'), new Date('2019-11-12 22:15:25'), null ],
+        [ 2, 'Category 2', 'Description of Category 2', new Date('2019-11-12 22:17:11'), new Date('2019-11-12 22:21:36'), null ]
       ]
     })
   })
