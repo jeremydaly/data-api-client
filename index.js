@@ -60,7 +60,7 @@ const parseDatabase = (config,args) =>
   : typeof args[0].database === 'string' ? args[0].database
   : args[0].database ? error('\'database\' must be a string.')
   : config.database ? config.database
-  : error('No \'database\' provided.')
+  : undefined // removed for #47 - error('No \'database\' provided.')
 
 // Parse the supplied hydrateColumnNames command, or default to config
 const parseHydrate = (config,args) =>
@@ -371,6 +371,9 @@ const query = async function(config,..._args) {
   ) // end params
 
   try { // attempt to run the query  
+
+    console.log('PARAMS',params);
+    
 
     // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()

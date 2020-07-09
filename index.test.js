@@ -144,9 +144,9 @@ describe('query configuration parsing', () => {
       expect(result).toBe('db')
     })
 
-    test('no database provided (error)', async () => {
-      let result = () => parseDatabase({}, [{}])
-      expect(result).toThrow(`No 'database' provided.`)
+    test('no database provided (return undefined)', async () => {
+      let result = parseDatabase({}, [{}])
+      expect(result).toBe.undefined
     })
 
   }) // end parseDatabase
