@@ -138,6 +138,7 @@ Below is a table containing all of the possible configuration options for the `d
 | ~~sslEnabled~~ (deprecated) | `boolean` | Set this in the `options` | `true` |
 | options | `object` | An *optional* configuration object that is passed directly into the RDSDataService constructor. See [here](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDSDataService.html#constructor-property) for available options.  | `{}` |
 | ~~region~~ (deprecated) | `string`  | Set this in the `options` | |
+| formatOptions | `object`  | Formatting options to auto parse dates and coerce native JavaScript date objects to MySQL supported date formats. Valid keys are `deserializeDate` and `treatAsLocalDate`. Both accept boolean values. | Both `false` |
 
 ### Connection Reuse
 It is recommended to enable connection reuse as this dramatically decreases the latency of subsequent calls to the AWS API. This can be done by setting an environment variable
@@ -289,7 +290,7 @@ The Data API Client exposes *promisified* versions of the five RDSDataService me
 - `executeStatement`
 - `rollbackTransaction`
 
-The default configuration information (`resourceArn`, `secretArn`, and `database`) are merge with your supplied parameters, so supplying those values are optional.
+The default configuration information (`resourceArn`, `secretArn`, and `database`) are merged with your supplied parameters, so supplying those values are optional.
 
 ```javascript
 let result = await data.executeStatement({
