@@ -31,21 +31,6 @@ const supportedTypes = [
   'structValue'
 ]
 
-/**********************************************************************/
-/** Enable HTTP Keep-Alive per https://vimeo.com/287511222          **/
-/** This dramatically increases the speed of subsequent HTTP calls  **/
-/**********************************************************************/
-
-const https = require('https')
-
-const sslAgent = new https.Agent({
-  keepAlive: true,
-  maxSockets: 50, // same as aws-sdk
-  rejectUnauthorized: true  // same as aws-sdk
-})
-sslAgent.setMaxListeners(0) // same as aws-sdk
-
-
 /********************************************************************/
 /**  PRIVATE METHODS                                               **/
 /********************************************************************/
@@ -499,22 +484,15 @@ module.exports = (params) => {
     : params.options !== undefined ? error('\'options\' must be an object')
     : {}
 
-  // Update the default AWS http agent with our new sslAgent
-  if (typeof params.keepAlive === 'boolean' ? params.keepAlive : true) {
-    AWS.config.update({ httpOptions: { agent: sslAgent } })
-  }
-
   // Update the AWS http agent with the region
   if (typeof params.region === 'string') {
-    AWS.config.update({ region: params.region })
+    options.region = params.region
   }
 
   // Disable ssl if wanted for local development
   if (params.sslEnabled === false) {
-    // AWS.config.update({ sslEnabled: false })
     options.sslEnabled = false
   }
-
 
   // Set the configuration for this instance
   const config = {
