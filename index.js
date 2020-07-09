@@ -8,7 +8,7 @@
  * https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html
  *
  * @author Jeremy Daly <jeremy@jeremydaly.com>
- * @version 1.0.0-beta
+ * @version 1.1.0
  * @license MIT
  */
 
@@ -371,7 +371,7 @@ const query = async function(config,..._args) {
   ) // end params
 
   try { // attempt to run the query  
-    
+
     // Capture the result for debugging
     let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
       : config.RDS.executeStatement(params).promise())

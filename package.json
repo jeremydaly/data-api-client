@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "index.js",
   "scripts": {
@@ -25,9 +25,9 @@
   },
   "homepage": "https://github.com/jeremydaly/data-api-client#readme",
   "devDependencies": {
-    "aws-sdk": "^2.588.0",
-    "eslint": "^6.7.2",
-    "jest": "^25.0.0",
+    "aws-sdk": "^2.713.0",
+    "eslint": "^6.8.0",
+    "jest": "^25.5.4",
     "rewire": "^4.0.1"
   },
   "dependencies": {
