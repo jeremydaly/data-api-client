@@ -253,7 +253,7 @@ const formatRecords = (recs,columns ,convertSnakeToCamel) => {
           : acc.concat(null)
 
       // If the field is mapped, return the mapped field
-      } else if (fmap[i] && fmap[i].field) {
+      } else if (fmap[i] && fmap[i].field && Object.keys(field)[0] !== 'arrayValue') {
         return columns ? // object if hydrate, else array
           Object.assign(acc,{ [fmap[i].label]: field[fmap[i].field] })
           : acc.concat(field[fmap[i].field])
