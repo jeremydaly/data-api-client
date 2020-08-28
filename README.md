@@ -24,16 +24,20 @@ const data = require('data-api-client')({
 
 // Simple SELECT
 let result = await data.query(`SELECT * FROM myTable`)
-// [ { id: 1, name: 'Alice', age: null },
-//   { id: 2, name: 'Mike', age: 52 },
-//   { id: 3, name: 'Carol', age: 50 } ]
+// {
+//   records: [
+//     { id: 1, name: 'Alice', age: null },
+//     { id: 2, name: 'Mike', age: 52 },
+//     { id: 3, name: 'Carol', age: 50 }
+//   ]
+// }
 
 // SELECT with named parameters
 let resultParams = await data.query(
   `SELECT * FROM myTable WHERE id = :id`,
   { id: 2 }
 )
-// [ { id: 2, name: 'Mike', age: 52 } ]
+// { records: [ { id: 2, name: 'Mike', age: 52 } ] }
 
 // INSERT with named parameters
 let insert = await data.query(
