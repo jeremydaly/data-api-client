@@ -380,7 +380,7 @@ const query = async function(config,..._args) {
     return formatResults(
       result,
       hydrateColumnNames,
-      args[0].includeResultMetadata === true ? true : false,
+      args[0].includeResultMetadata === true,
       formatOptions
     )
 
@@ -477,7 +477,24 @@ const commit = async (config,queries,rollback) => {
 /********************************************************************/
 
 // Export main function
-module.exports = (params) => {
+/**
+ *
+ * @param {object} params
+ * @param {'mysql'|'pg'} params.engine The type of database (MySQL or Postgres)
+ * @param {string} params.resourceArn The ARN of your Aurora Serverless Cluster
+ * @param {string} params.secretArn The ARN of the secret associated with your database credentials
+ * @param {string} [params.database] The name of the database
+ * @param {boolean} [params.hydrateColumnNames=true] Return objects with column names as keys
+ * @param {object} [params.options={}] Configuration object passed directly into RDSDataService
+ * @param {object} [params.formatOptions] Date-related formatting options
+ * @param {boolean} [params.formatOptions.deserializeDate=false]
+ * @param {boolean} [params.formatOptions.treatAsLocalDate=false]
+ * @param {boolean} [params.keepAlive] DEPRECATED
+ * @param {boolean} [params.sslEnabled=true] DEPRECATED
+ * @param {string} [params.region] DEPRECATED
+ *
+ */
+function init(params) {
 
   // Set the options for the RDSDataService
   const options = typeof params.options === 'object' ? params.options
@@ -568,3 +585,5 @@ module.exports = (params) => {
   }
 
 } // end exports
+
+module.exports = init
