@@ -489,7 +489,7 @@ const commit = async (config,queries,rollback) => {
 
 // Export main function
 /**
- *
+ * Create a Data API client instance
  * @param {object} params
  * @param {'mysql'|'pg'} params.engine The type of database (MySQL or Postgres)
  * @param {string} params.resourceArn The ARN of your Aurora Serverless Cluster
