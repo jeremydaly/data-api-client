@@ -106,7 +106,7 @@ const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
 // Normize parameters so that they are all in standard format
 const normalizeParams = params => params.reduce((acc,p) =>
   Array.isArray(p) ? acc.concat([normalizeParams(p)])
-  : Object.keys(p).length === 2 && p.name && p.value ? acc.concat(p)
+  : Object.keys(p).length === 2 && p.name && typeof p.value !== 'undefined' ? acc.concat(p)
   : acc.concat(splitParams(p))
 ,[]) // end reduce
 
