@@ -107,12 +107,11 @@ const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
 const normalizeParams = params => params.reduce((acc, p) =>
   Array.isArray(p) ? acc.concat([normalizeParams(p)])
   : (
-    (Object.keys(p).length === 2 && p.name && p.value) ||
-    (Object.keys(p).length === 3 && p.name && p.value && p.cast)
+    (Object.keys(p).length === 2 && p.name && p.value !== 'undefined') ||
+    (Object.keys(p).length === 3 && p.name && p.value !== 'undefined' && p.cast)
   ) ? acc.concat(p)
     : acc.concat(splitParams(p))
 , []) // end reduce
-
 
 // Prepare parameters
 const processParams = (engine,sql,sqlParams,params,formatOptions,row=0) => {
