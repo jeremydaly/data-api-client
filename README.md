@@ -378,7 +378,7 @@ You can then configure your rotation settings, if you want, and then you review 
 
 ### Required Permissions
 
-In order to use the Data API, your execution environment requires several IAM permissions. Below are the minimum permissions required.
+In order to use the Data API, your execution environment requires several IAM permissions. Below are the minimum permissions required. **Please Note:** The `Resource: "*"` permission for `rds-data` is recommended by AWS (see [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/list_amazonrdsdataapi.html#amazonrdsdataapi-resources-for-iam-policies)) because Amazon RDS Data API does not support specifying a resource ARN. The credentials specified in Secrets Manager can be used to restrict access to specific databases.
 
 **YAML:**
 ```yaml
