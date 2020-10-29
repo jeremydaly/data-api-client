@@ -391,7 +391,7 @@ Statement:
       - "rds-data:BeginTransaction"
       - "rds-data:RollbackTransaction"
       - "rds-data:CommitTransaction"
-    Resource: "arn:aws:rds:{REGION}:{ACCOUNT-ID}:cluster:{YOUR-CLUSTER-NAME}"
+    Resource: "*"
   - Effect: "Allow"
     Action:
       - "secretsmanager:GetSecretValue"
@@ -411,7 +411,7 @@ Statement:
       "rds-data:RollbackTransaction",
       "rds-data:CommitTransaction"
     ],
-    "Resource": "arn:aws:rds:{REGION}:{ACCOUNT-ID}:cluster:{YOUR-CLUSTER-NAME}"
+    "Resource": "*"
   },
   {
     "Effect": "Allow",
