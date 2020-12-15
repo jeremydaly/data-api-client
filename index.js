@@ -118,7 +118,7 @@ const processParams = (engine,sql,sqlParams,params,formatOptions,row=0) => {
   return {
     processedParams: params.reduce((acc,p) => {
       if (Array.isArray(p)) {
-        const result = processParams(sql,sqlParams,p,formatOptions,row)
+        const result = processParams(engine,sql,sqlParams,p,formatOptions,row)
         if (row === 0) { sql = result.escapedSql; row++ }
         return acc.concat([result.processedParams])
       } else if (sqlParams[p.name]) {

@@ -375,6 +375,7 @@ describe('query parameter processing', () => {
 
     test('single param, single record', async () => {
       let { processedParams,escapedSql } = processParams(
+        'pg',
         'SELECT * FROM myTable WHERE id = :id',
         { id: { type: 'n_ph' } },
         [{ name: 'id', value: 1 }]
@@ -387,6 +388,7 @@ describe('query parameter processing', () => {
 
     test('mulitple params, named param, single record', async () => {
       let { processedParams,escapedSql } = processParams(
+        'pg',
         'SELECT ::columnName FROM myTable WHERE id = :id AND id2 = :id2',
         { id: { type: 'n_ph' }, id2: { type: 'n_ph' }, columnName: { type: 'n_id' } },
         [
@@ -404,6 +406,7 @@ describe('query parameter processing', () => {
 
     test('single param, multiple records', async () => {
       let { processedParams,escapedSql } = processParams(
+        'pg',
         'SELECT * FROM myTable WHERE id = :id',
         { id: { type: 'n_ph' } },
         [
@@ -420,6 +423,7 @@ describe('query parameter processing', () => {
 
     test('multiple params, multiple records', async () => {
       let { processedParams,escapedSql } = processParams(
+        'pg',
         'SELECT * FROM myTable WHERE id = :id',
         { id: { type: 'n_ph' }, id2: { type: 'n_ph' } },
         [
@@ -436,6 +440,7 @@ describe('query parameter processing', () => {
 
     test('mulitple params, named params, multiple records', async () => {
       let { processedParams,escapedSql } = processParams(
+        'pg',
         'SELECT ::columnName FROM myTable WHERE id = :id AND id2 = :id2',
         { id: { type: 'n_ph' }, id2: { type: 'n_ph' }, columnName: { type: 'n_id' } },
         [
@@ -461,6 +466,25 @@ describe('query parameter processing', () => {
           { name: 'id', value: { longValue: 2 } },
           { name: 'id2', value: { longValue: 3 } }
         ]
+      ])
+    })
+
+    test('typecasting params', async () => {
+      let { processedParams,escapedSql } = processParams(
+        'pg',
+        'INSERT INTO users(id, name, meta) VALUES(:id, :name, :meta)',
+        { id: { type: 'n_ph' }, name: { type: 'n_ph' }, meta: { type: 'n_ph' } },
+        [
+          { name: 'id', value: '0bb99248-2e7d-4007-a4b2-579b00649ce1', cast: 'uuid' },
+          { name: 'name', value: 'Test' },
+          { name: 'meta', value: '{"extra": true}', cast: 'jsonb' }
+        ]
+      )
+      expect(escapedSql).toBe('INSERT INTO users(id, name, meta) VALUES(:id::uuid, :name, :meta::jsonb)')
+      expect(processedParams).toEqual([
+        { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
+        { name: 'name', value: { stringValue: 'Test' } },
+        { name: 'meta', value: { stringValue: '{"extra": true}' } }
       ])
     })
 
