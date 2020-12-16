@@ -8,7 +8,7 @@
  * https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html
  *
  * @author Jeremy Daly <jeremy@jeremydaly.com>
- * @version 1.1.0
+ * @version 1.2.0
  * @license MIT
  */
 
@@ -490,7 +490,7 @@ const commit = async (config,queries,rollback) => {
 /**
  * Create a Data API client instance
  * @param {object} params
- * @param {'mysql'|'pg'} params.engine The type of database (MySQL or Postgres)
+ * @param {'mysql'|'pg'} [params.engine=mysql] The type of database (MySQL or Postgres)
  * @param {string} params.resourceArn The ARN of your Aurora Serverless Cluster
  * @param {string} params.secretArn The ARN of the secret associated with your
  *   database credentials
@@ -529,7 +529,7 @@ const init = params => {
     // Require engine
     engine: typeof params.engine === 'string' ?
       params.engine
-      : error('\'engine\' string value required'),
+      : 'mysql',
 
     // Require secretArn
     secretArn: typeof params.secretArn === 'string' ?

@@ -137,6 +137,7 @@ Below is a table containing all of the possible configuration options for the `d
 | resourceArn | `string` | The ARN of your Aurora Serverless Cluster. This value is *required*, but can be overridden when querying. |  |
 | secretArn | `string` | The ARN of the secret associated with your database credentials. This is *required*, but can be overridden when querying. |  |
 | database | `string` | *Optional* default database to use with queries. Can be overridden when querying. |  |
+| engine | `mysql` or `pg` | The type of database engine you're connecting to (MySQL or Postgres). | `mysql` |
 | hydrateColumnNames | `boolean` | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values. | `true` |
 | ~~keepAlive~~ (deprecated) | `boolean` | See [Connection Reuse](#connection-reuse) below. | |
 | ~~sslEnabled~~ (deprecated) | `boolean` | Set this in the `options` | `true` |
