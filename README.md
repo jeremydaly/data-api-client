@@ -236,6 +236,35 @@ SELECT `id`, `name`, `created` FROM `table_123abc` WHERE id > :id LIMIT 10
 
 You'll notice that we leave the *named parameters* alone. Anything that Data API and the `RDSDataService` Class currently handles, we defer to them.
 
+### Type-Casting
+The Aurora Data API can sometimes give you trouble with certain data types, such as uuid, unless you explicitly cast them. While you can certainly do this manually in your SQL string, the Data API Client offers a really easy way to handle this for you.
+
+```javascript
+const result = await data.query(
+  'INSERT INTO users(id, email, full_name, metadata) VALUES(:id, :email, :fullName, :metadata)',
+  [
+    {
+      name: 'id',
+      value: newUserId,
+      cast: 'uuid'
+    },
+    {
+      name: 'email',
+      value: email
+    },
+    {
+      name: 'fullName',
+      value: fullName
+    },
+    {
+      name: 'metadata',
+      value: JSON.stringify(userMetadata),
+      cast: 'jsonb'
+    }
+  ]
+)
+```
+
 ### Batch Queries
 The `RDSDataService` Class provides a `batchExecuteStatement` method that allows you to execute a prepared statement multiple times using different parameter sets. This is only allowed for `INSERT`, `UPDATE` and `DELETE` queries, but is much more efficient than issuing multiple `executeStatement` calls. The Data API Client handles the switching for you based on *how* you send in your parameters.
 

@@ -104,27 +104,38 @@ const pick = (obj,values) => Object.keys(obj).reduce((acc,x) =>
 const flatten = arr => arr.reduce((acc,x) => acc.concat(x),[])
 
 // Normize parameters so that they are all in standard format
-const normalizeParams = params => params.reduce((acc,p) =>
+const normalizeParams = params => params.reduce((acc, p) =>
   Array.isArray(p) ? acc.concat([normalizeParams(p)])
-  : Object.keys(p).length === 2 && p.name && typeof p.value !== 'undefined' ? acc.concat(p)
-  : acc.concat(splitParams(p))
-,[]) // end reduce
-
+  : (
+    (Object.keys(p).length === 2 && p.name && p.value !== 'undefined') ||
+    (Object.keys(p).length === 3 && p.name && p.value !== 'undefined' && p.cast)
+  ) ? acc.concat(p)
+    : acc.concat(splitParams(p))
+, []) // end reduce
 
 // Prepare parameters
-const processParams = (sql,sqlParams,params,formatOptions,row=0) => {
+const processParams = (engine,sql,sqlParams,params,formatOptions,row=0) => {
   return {
     processedParams: params.reduce((acc,p) => {
       if (Array.isArray(p)) {
-        let result = processParams(sql,sqlParams,p,formatOptions,row)
+        const result = processParams(engine,sql,sqlParams,p,formatOptions,row)
         if (row === 0) { sql = result.escapedSql; row++ }
         return acc.concat([result.processedParams])
       } else if (sqlParams[p.name]) {
         if (sqlParams[p.name].type === 'n_ph') {
+          if (p.cast) {
+            const regex = new RegExp(':' + p.name + '\\b', 'g')
+            sql = sql.replace(
+              regex,
+              engine === 'pg'
+                ? `:${p.name}::${p.cast}`
+                : `CAST(:${p.name} AS ${p.cast})`
+            )
+          }
           acc.push(formatParam(p.name,p.value,formatOptions))
         } else if (row === 0) {
-          let regex = new RegExp('::' + p.name + '\\b','g')
-          sql = sql.replace(regex,sqlString.escapeId(p.value))
+          const regex = new RegExp('::' + p.name + '\\b', 'g')
+          sql = sql.replace(regex, sqlString.escapeId(p.value))
         }
         return acc
       } else {
@@ -184,7 +195,7 @@ const getType = val =>
 // Hint to specify the underlying object type for data type mapping
 const getTypeHint = val =>
   isDate(val) ? 'TIMESTAMP' : undefined
-  
+
 const isDate = val =>
   val instanceof Date
 
@@ -256,7 +267,7 @@ const formatResults = (
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
-const formatRecords = (recs,columns,hydrate,formatOptions) => {  
+const formatRecords = (recs,columns,hydrate,formatOptions) => {
 
   // Create map for efficient value parsing
   let fmap = recs && recs[0] ? recs[0].map((x,i) => {
@@ -306,8 +317,8 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
 
 // Format record value based on its value, the database column's typeName and the formatting options
 const formatRecordValue = (value,typeName,formatOptions) => formatOptions && formatOptions.deserializeDate &&
-  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName) 
-  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE') 
+  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)
+  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
   : value
 
 // Format updateResults and extract insertIds
@@ -329,7 +340,6 @@ const mergeConfig = (initialConfig,args) =>
 
 // Query function (use standard form for `this` context)
 const query = async function(config,..._args) {
-
   // Flatten array if nested arrays (fixes #30)
   const args = Array.isArray(_args[0]) ? flatten(_args) : _args
 
@@ -347,11 +357,11 @@ const query = async function(config,..._args) {
   const parameters = normalizeParams(parseParams(args))
 
   // Process parameters and escape necessary SQL
-  const { processedParams,escapedSql } = processParams(sql,sqlParams,parameters,formatOptions)
+  const { processedParams,escapedSql } = processParams(config.engine,sql,sqlParams,parameters,formatOptions)
 
   // Determine if this is a batch request
   const isBatch = processedParams.length > 0
-    && Array.isArray(processedParams[0]) ? true : false
+    && Array.isArray(processedParams[0])
 
   // Create/format the parameters
   const params = Object.assign(
@@ -380,7 +390,7 @@ const query = async function(config,..._args) {
     return formatResults(
       result,
       hydrateColumnNames,
-      args[0].includeResultMetadata === true ? true : false,
+      args[0].includeResultMetadata === true,
       formatOptions
     )
 
@@ -477,7 +487,27 @@ const commit = async (config,queries,rollback) => {
 /********************************************************************/
 
 // Export main function
-module.exports = (params) => {
+/**
+ * Create a Data API client instance
+ * @param {object} params
+ * @param {'mysql'|'pg'} params.engine The type of database (MySQL or Postgres)
+ * @param {string} params.resourceArn The ARN of your Aurora Serverless Cluster
+ * @param {string} params.secretArn The ARN of the secret associated with your
+ *   database credentials
+ * @param {string} [params.database] The name of the database
+ * @param {boolean} [params.hydrateColumnNames=true] Return objects with column
+ *   names as keys
+ * @param {object} [params.options={}] Configuration object passed directly
+ *   into RDSDataService
+ * @param {object} [params.formatOptions] Date-related formatting options
+ * @param {boolean} [params.formatOptions.deserializeDate=false]
+ * @param {boolean} [params.formatOptions.treatAsLocalDate=false]
+ * @param {boolean} [params.keepAlive] DEPRECATED
+ * @param {boolean} [params.sslEnabled=true] DEPRECATED
+ * @param {string} [params.region] DEPRECATED
+ *
+ */
+const init = params => {
 
   // Set the options for the RDSDataService
   const options = typeof params.options === 'object' ? params.options
@@ -496,6 +526,10 @@ module.exports = (params) => {
 
   // Set the configuration for this instance
   const config = {
+    // Require engine
+    engine: typeof params.engine === 'string' ?
+      params.engine
+      : error('\'engine\' string value required'),
 
     // Require secretArn
     secretArn: typeof params.secretArn === 'string' ?
@@ -535,7 +569,7 @@ module.exports = (params) => {
     // Create an instance of RDSDataService
     RDS: new AWS.RDSDataService(options)
 
-  } // end config 
+  } // end config
 
   // Return public methods
   return {
@@ -568,3 +602,5 @@ module.exports = (params) => {
   }
 
 } // end exports
+
+module.exports = init
