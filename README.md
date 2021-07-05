@@ -383,7 +383,7 @@ No worries! The Data API Client gives you the ability to parameterize identifier
 This one is a bit frustrating. If you execute a standard `executeStatement`, then it will return a `numberOfRecordsUpdated` field for `UPDATE` and `DELETE` queries. This is handy for knowing if your query succeeded. Unfortunately, a `batchExecuteStatement` does not return this field for you.
 
 ## Enabling Data API
-In order to use the Data API, you must enable it on your Aurora Serverless Cluster and create a Secret. You also musst grant your execution environment a number of permission as outlined in the following sections.
+In order to use the Data API, you must enable it on your Aurora Serverless Cluster and create a Secret. You also must grant your execution environment a number of permission as outlined in the following sections.
 
 ### Enable Data API on your Aurora Serverless Cluster
 
