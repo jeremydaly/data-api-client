@@ -12,9 +12,7 @@
  * @license MIT
  */
 
-// Require the aws-sdk. This is a dev dependency, so if being used
-// outside of a Lambda execution environment, it must be manually installed.
-const AWS = require('aws-sdk')
+const { RDSData } = require('@aws-sdk/client-rds-data')
 
 // Require sqlstring to add additional escaping capabilities
 const sqlString = require('sqlstring')
@@ -380,11 +378,11 @@ const query = async function(config,..._args) {
     config.transactionId ? { transactionId: config.transactionId } : {}
   ) // end params
 
-  try { // attempt to run the query  
+  try { // attempt to run the query
 
     // Capture the result for debugging
-    let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
-      : config.RDS.executeStatement(params).promise())
+    let result = await (isBatch ? config.RDS.batchExecuteStatement(params)
+      : config.RDS.executeStatement(params))
 
     // Format and return the results
     return formatResults(
@@ -399,7 +397,7 @@ const query = async function(config,..._args) {
     if (this && this.rollback) {
       let rollback = await config.RDS.rollbackTransaction(
         pick(params,['resourceArn','secretArn','transactionId'])
-      ).promise()
+      )
 
       this.rollback(e,rollback)
     }
@@ -457,7 +455,7 @@ const commit = async (config,queries,rollback) => {
   // Start a transaction
   const { transactionId } = await config.RDS.beginTransaction(
     pick(config,['resourceArn','secretArn','database'])
-  ).promise()
+  )
 
   // Add transactionId to the config
   let txConfig = Object.assign(config, { transactionId })
@@ -473,7 +471,7 @@ const commit = async (config,queries,rollback) => {
   // Commit our transaction
   const { transactionStatus } = await txConfig.RDS.commitTransaction(
     pick(config,['resourceArn','secretArn','transactionId'])
-  ).promise()
+  )
 
   // Add the transaction status to the results
   results.push({transactionStatus})
@@ -521,7 +519,7 @@ const init = params => {
 
   // Disable ssl if wanted for local development
   if (params.sslEnabled === false) {
-    options.sslEnabled = false
+    options.tls = false
   }
 
   // Set the configuration for this instance
@@ -567,7 +565,7 @@ const init = params => {
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: new AWS.RDSDataService(options)
+    RDS: new RDSData(options)
 
   } // end config
 
@@ -578,27 +576,27 @@ const init = params => {
     // Transaction method, pass config and parameters
     transaction: (x) => transaction(config,x),
 
-    // Export promisified versions of the RDSDataService methods
+    // Export methods from RDSData
     batchExecuteStatement: (args) =>
       config.RDS.batchExecuteStatement(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
+      ),
     beginTransaction: (args) =>
       config.RDS.beginTransaction(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
+      ),
     commitTransaction: (args) =>
       config.RDS.commitTransaction(
         mergeConfig(pick(config,['resourceArn','secretArn']),args)
-      ).promise(),
+      ),
     executeStatement: (args) =>
       config.RDS.executeStatement(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
+      ),
     rollbackTransaction: (args) =>
       config.RDS.rollbackTransaction(
         mergeConfig(pick(config,['resourceArn','secretArn']),args)
-      ).promise()
+      )
   }
 
 } // end exports
