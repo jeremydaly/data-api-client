@@ -289,7 +289,12 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
 
       // If the field is mapped, return the mapped field
       } else if (fmap[i] && fmap[i].field) {
-        const value = formatRecordValue(field[fmap[i].field],fmap[i].typeName,formatOptions)
+        const value = formatRecordValue(
+          field[fmap[i].field],
+          fmap[i].field,
+          fmap[i].typeName,
+          formatOptions,
+        )
         return hydrate ? // object if hydrate, else array
           Object.assign(acc,{ [fmap[i].label]: value })
           : acc.concat(value)
@@ -305,7 +310,12 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
         })
 
         // Return the mapped field (this should NEVER be null)
-        const value = formatRecordValue(field[fmap[i].field],fmap[i].typeName,formatOptions)
+        const value = formatRecordValue(
+          field[fmap[i].field],
+          fmap[i].field,
+          fmap[i].typeName,
+          formatOptions,
+        )
         return hydrate ? // object if hydrate, else array
           Object.assign(acc,{ [fmap[i].label]: value })
           : acc.concat(value)
@@ -315,11 +325,32 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
   }) : [] // empty record set returns an array
 } // end formatRecords
 
+function unnestArrayValue(value) {
+  // value at this point is an object of format { "<valueTypes>": [...] }.
+  if (Object.keys[0] === 'arrayValues') { // array inside array (recursive)
+    return value.arrayValues.map(unnestArrayValue)
+  } else {
+    // we can blindly get the second level property as it is casted properly already
+    return Object.values(value)[0]
+  }
+}
+
 // Format record value based on its value, the database column's typeName and the formatting options
-const formatRecordValue = (value,typeName,formatOptions) => formatOptions && formatOptions.deserializeDate &&
-  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)
-  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
-  : value
+const formatRecordValue = (value, dataType, typeName, formatOptions) => {
+  if (value && dataType === 'arrayValue') {
+    value = unnestArrayValue(value)
+  }
+  if (
+    formatOptions && formatOptions.deserializeDate
+    && ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)
+  ) {
+    const shouldTreatAsLocalDate = (formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE'
+    return Array.isArray(value)
+      ? value.map(val => formatFromTimeStamp(val, shouldTreatAsLocalDate))
+      : formatFromTimeStamp(value, shouldTreatAsLocalDate)
+  }
+  return value
+}
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
