@@ -318,7 +318,7 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
         )
         return hydrate ? // object if hydrate, else array
           Object.assign(acc,{ [fmap[i].label]: value })
-          : acc.concat(value)
+          : acc.concat(Array.isArray(value) ? [value] : value)
       }
 
     }, hydrate ? {} : []) // init object if hydrate, else init array
