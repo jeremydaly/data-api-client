@@ -316,10 +316,15 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
 } // end formatRecords
 
 // Format record value based on its value, the database column's typeName and the formatting options
-const formatRecordValue = (value,typeName,formatOptions) => formatOptions && formatOptions.deserializeDate &&
-  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)
-  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
-  : value
+const formatRecordValue = (value,typeName,formatOptions) => {
+  if(formatOptions && formatOptions.deserializeDate && ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)) {
+    return formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
+  } else if (typeName === 'JSON') {
+    return JSON.parse(value)
+  } else {
+    return value
+  }
+}
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
