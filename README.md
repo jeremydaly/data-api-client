@@ -134,6 +134,7 @@ Below is a table containing all of the possible configuration options for the `d
 
 | Property | Type | Description | Default |
 | -------- | ---- | ----------- | ------- |
+| AWS      | `AWS` |  A custom `aws-sdk` instance   |         |
 | resourceArn | `string` | The ARN of your Aurora Serverless Cluster. This value is *required*, but can be overridden when querying. |  |
 | secretArn | `string` | The ARN of the secret associated with your database credentials. This is *required*, but can be overridden when querying. |  |
 | database | `string` | *Optional* default database to use with queries. Can be overridden when querying. |  |
@@ -335,6 +336,32 @@ let result = await data.executeStatement({
   transactionId: 'AQC5SRDIm...ZHXP/WORU='
 )
 ```
+
+## Custom AWS instance
+
+`data-api-client` allows for introducing a custom `AWS` as a parameter. This parameter is optional. If not present - `data-api-client` will fall back to the default `AWS` instance that comes with the library.
+
+```javascript
+// Instantiate data-api-client with a custom AWS instance
+const data = require('data-api-client')({
+  AWS: customAWS,
+  ...
+})
+```
+
+Custom AWS parameter allows to introduce, e.g. tracing Data API calls through X-Ray with:
+
+```javascript
+const AWSXRay = require('aws-xray-sdk')
+const AWS = AWSXRay.captureAWS(require('aws-sdk'))
+
+const data = require('data-api-client')({
+  AWS: AWS,
+  ...
+})
+```
+
+or mocking AWS for testing.
 
 ## Data API Limitations / Wonkiness
 The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outlined some of my findings below.
