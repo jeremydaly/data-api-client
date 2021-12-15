@@ -361,8 +361,6 @@ const data = require('data-api-client')({
 })
 ```
 
-or mocking AWS for testing.
-
 ## Data API Limitations / Wonkiness
 The first GA release of the Data API has *a lot* of promise, unfortunately, there are still quite a few things that make it a bit wonky and may require you to implement some workarounds. I've outlined some of my findings below.
 
