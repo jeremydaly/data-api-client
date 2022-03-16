@@ -14,7 +14,7 @@
 
 // Require the aws-sdk. This is a dev dependency, so if being used
 // outside of a Lambda execution environment, it must be manually installed.
-const AWS = require('aws-sdk')
+const AWS = require('@aws-sdk/client-rds-data')
 
 // Require sqlstring to add additional escaping capabilities
 const sqlString = require('sqlstring')
@@ -383,8 +383,10 @@ const query = async function(config,..._args) {
   try { // attempt to run the query  
 
     // Capture the result for debugging
-    let result = await (isBatch ? config.RDS.batchExecuteStatement(params).promise()
-      : config.RDS.executeStatement(params).promise())
+    let command = (isBatch ? new AWS.BatchExecuteStatementCommand(params)
+      : new AWS.ExecuteStatementCommand(params))
+
+    const result = await config.RDS.send(command)
 
     // Format and return the results
     return formatResults(
@@ -397,11 +399,13 @@ const query = async function(config,..._args) {
   } catch(e) {
 
     if (this && this.rollback) {
-      let rollback = await config.RDS.rollbackTransaction(
-        pick(params,['resourceArn','secretArn','transactionId'])
-      ).promise()
+      const command = new AWS.RollbackTransactionCommand(
+        pick(params, ['resourceArn','secretArn','transactionId'])
+      )
 
-      this.rollback(e,rollback)
+      const rollback = await config.RDS.send(command)
+
+      this.rollback(e, rollback)
     }
     // Throw the error
     throw e
@@ -455,9 +459,11 @@ const commit = async (config,queries,rollback) => {
   let results = [] // keep track of results
 
   // Start a transaction
-  const { transactionId } = await config.RDS.beginTransaction(
+  const command = new AWS.BeginTransactionCommand(
     pick(config,['resourceArn','secretArn','database'])
-  ).promise()
+  )
+
+  const { transactionId } = await config.RDS.send(command)
 
   // Add transactionId to the config
   let txConfig = Object.assign(config, { transactionId })
@@ -471,9 +477,11 @@ const commit = async (config,queries,rollback) => {
   }
 
   // Commit our transaction
-  const { transactionStatus } = await txConfig.RDS.commitTransaction(
-    pick(config,['resourceArn','secretArn','transactionId'])
-  ).promise()
+  const transCommand = new AWS.CommitTransactionCommand(
+    pick(txConfig, ['resourceArn','secretArn','transactionId'])
+  )
+
+  const { transactionStatus } = await config.RDS.send(transCommand)
 
   // Add the transaction status to the results
   results.push({transactionStatus})
@@ -508,7 +516,6 @@ const commit = async (config,queries,rollback) => {
  *
  */
 const init = params => {
-
   // Set the options for the RDSDataService
   const options = typeof params.options === 'object' ? params.options
     : params.options !== undefined ? error('\'options\' must be an object')
@@ -524,13 +531,20 @@ const init = params => {
     options.sslEnabled = false
   }
 
+  if (typeof params.accessKeyId === 'string' && typeof params.secretAccessKey === 'string') {
+    options.credentials = {
+      accessKeyId: params.accessKeyId,
+      secretAccessKey: params.secretAccessKey
+    }
+  }
+
   // Set the configuration for this instance
   const config = {
     // Require engine
     engine: typeof params.engine === 'string' ?
       params.engine
       : 'mysql',
-
+    
     // Require secretArn
     secretArn: typeof params.secretArn === 'string' ?
       params.secretArn
@@ -567,7 +581,7 @@ const init = params => {
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: new AWS.RDSDataService(options)
+    RDS: new AWS.RDSDataClient(options)
 
   } // end config
 
@@ -579,26 +593,41 @@ const init = params => {
     transaction: (x) => transaction(config,x),
 
     // Export promisified versions of the RDSDataService methods
-    batchExecuteStatement: (args) =>
-      config.RDS.batchExecuteStatement(
+    batchExecuteStatement: (args) => {
+      const command = new AWS.BatchExecuteStatementCommand(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
-    beginTransaction: (args) =>
-      config.RDS.beginTransaction(
+      )
+
+      return config.RDS.send(command)
+    },
+    beginTransaction: (args) => {
+      const command = new AWS.BeginTransactionCommand(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
-    commitTransaction: (args) =>
-      config.RDS.commitTransaction(
+      )
+
+      return config.RDS.send(command)
+    },
+    commitTransaction: (args) => {
+      const command = new AWS.CommitTransactionCommand(
         mergeConfig(pick(config,['resourceArn','secretArn']),args)
-      ).promise(),
-    executeStatement: (args) =>
-      config.RDS.executeStatement(
+      )
+
+      return config.RDS.send(command)
+    },
+    executeStatement: (args) => {
+      const command = new AWS.ExecuteStatementCommand(
         mergeConfig(pick(config,['resourceArn','secretArn','database']),args)
-      ).promise(),
-    rollbackTransaction: (args) =>
-      config.RDS.rollbackTransaction(
+      )
+
+      return config.RDS.send(command)
+    },
+    rollbackTransaction: (args) => {
+      const command = new AWS.RollbackTransactionCommand(
         mergeConfig(pick(config,['resourceArn','secretArn']),args)
-      ).promise()
+      )
+
+      return config.RDS.send(command)
+    }
   }
 
 } // end exports
