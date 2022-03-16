@@ -505,15 +505,12 @@ describe('querying', () => {
       resourceArn: 'resourceArn',
       database: 'db',
       RDS: {
-        executeStatement: (params) => {
+        send: (params) => {
           // capture the parameters for testing
-          parameters = params
-          return {
-            promise: () => {
-              return require('./test/sample-query-response.json')
-            }
-          }
-        }
+          parameters = params.input
+
+          return require('./test/sample-query-response.json')
+        },
       }
     }
 
