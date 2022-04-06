@@ -238,7 +238,7 @@ const formatToTimeStamp = (date, treatAsLocalDate) => {
 // If standard TIMESTAMP format (YYYY-MM-DD[ HH:MM:SS[.FFF]]) without TZ + treatAsLocalDate=false then assume UTC Date
 // In all other cases convert value to datetime as-is (also values with TZ info)
 const formatFromTimeStamp = (value,treatAsLocalDate) =>
-  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d{3})?)?$/.test(value) ?
+  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d+)?)?$/.test(value) ?
     new Date(value + 'Z') :
     new Date(value)
 
@@ -316,10 +316,15 @@ const formatRecords = (recs,columns,hydrate,formatOptions) => {
 } // end formatRecords
 
 // Format record value based on its value, the database column's typeName and the formatting options
-const formatRecordValue = (value,typeName,formatOptions) => formatOptions && formatOptions.deserializeDate &&
-  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(typeName.toUpperCase())
-  ? formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
-  : value
+const formatRecordValue = (value,typeName,formatOptions) => {
+  if(formatOptions && formatOptions.deserializeDate && ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(typeName)) {
+    return formatFromTimeStamp(value,(formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE')
+  } else if (typeName === 'JSON') {
+    return JSON.parse(value)
+  } else {
+    return value
+  }
+}
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = res => res.map(x => {
@@ -567,7 +572,7 @@ const init = params => {
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: new AWS.RDSDataService(options)
+    RDS: params.AWS ? new params.AWS.RDSDataService(options) : new AWS.RDSDataService(options)
 
   } // end config
 
