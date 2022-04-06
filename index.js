@@ -238,7 +238,7 @@ const formatToTimeStamp = (date, treatAsLocalDate) => {
 // If standard TIMESTAMP format (YYYY-MM-DD[ HH:MM:SS[.FFF]]) without TZ + treatAsLocalDate=false then assume UTC Date
 // In all other cases convert value to datetime as-is (also values with TZ info)
 const formatFromTimeStamp = (value,treatAsLocalDate) =>
-  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d{3})?)?$/.test(value) ?
+  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d+)?)?$/.test(value) ?
     new Date(value + 'Z') :
     new Date(value)
 
