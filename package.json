@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "index.js",
   "scripts": {
@@ -27,8 +27,8 @@
   "devDependencies": {
     "aws-sdk": "^2.811.0",
     "eslint": "^6.8.0",
-    "jest": "^25.5.4",
-    "rewire": "^4.0.1"
+    "jest": "^27.5.1",
+    "rewire": "^6.0.0"
   },
   "dependencies": {
     "sqlstring": "^2.3.2"
