@@ -25,12 +25,12 @@
   },
   "homepage": "https://github.com/jeremydaly/data-api-client#readme",
   "devDependencies": {
-    "aws-sdk": "^2.811.0",
     "eslint": "^6.8.0",
     "jest": "^27.5.1",
     "rewire": "^6.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-rds-data": "^3.58.0",
     "sqlstring": "^2.3.2"
   },
   "files": [
