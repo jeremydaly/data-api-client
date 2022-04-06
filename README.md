@@ -4,6 +4,8 @@
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 [![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 
+## v2.0 BETA with support for AWS SDK v3
+
 The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API. It also exposes simplified versions of the native AWS SDK v3 `RDSDataClient` methods to make working with `async/await` or Promise chains easier AND dramatically simplifies **transactions**.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
@@ -14,16 +16,16 @@ The **Data API Client** makes working with the Aurora Serverless Data API super 
 
 ```javascript
 // Require and instantiate data-api-client with secret and cluster
-const data = require("data-api-client")({
-  secretArn: "arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret",
-  resourceArn: "arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name",
-  database: "myDatabase", // default database
-});
+const data = require('data-api-client')({
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
+  database: 'myDatabase' // default database
+})
 
 /*** Assuming we're in an async function ***/
 
 // Simple SELECT
-let result = await data.query(`SELECT * FROM myTable`);
+let result = await data.query(`SELECT * FROM myTable`)
 // {
 //   records: [
 //     { id: 1, name: 'Alice', age: null },
@@ -34,49 +36,44 @@ let result = await data.query(`SELECT * FROM myTable`);
 
 // SELECT with named parameters
 let resultParams = await data.query(`SELECT * FROM myTable WHERE id = :id`, {
-  id: 2,
-});
+  id: 2
+})
 // { records: [ { id: 2, name: 'Mike', age: 52 } ] }
 
 // INSERT with named parameters
-let insert = await data.query(
-  `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
-  { name: "Greg", age: 18, curls: false }
-);
+let insert = await data.query(`INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`, {
+  name: 'Greg',
+  age: 18,
+  curls: false
+})
 
 // BATCH INSERT with named parameters
-let batchInsert = await data.query(
-  `INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`,
-  [
-    [{ name: "Marcia", age: 17, curls: false }],
-    [{ name: "Peter", age: 15, curls: false }],
-    [{ name: "Jan", age: 15, curls: false }],
-    [{ name: "Cindy", age: 12, curls: true }],
-    [{ name: "Bobby", age: 12, curls: false }],
-  ]
-);
+let batchInsert = await data.query(`INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)`, [
+  [{ name: 'Marcia', age: 17, curls: false }],
+  [{ name: 'Peter', age: 15, curls: false }],
+  [{ name: 'Jan', age: 15, curls: false }],
+  [{ name: 'Cindy', age: 12, curls: true }],
+  [{ name: 'Bobby', age: 12, curls: false }]
+])
 // Update with named parameters
 let update = await data.query(`UPDATE myTable SET age = :age WHERE id = :id`, {
   age: 13,
-  id: 5,
-});
+  id: 5
+})
 
 // Delete with named parameters
 let remove = await data.query(
   `DELETE FROM myTable WHERE name = :name`,
-  { name: "Jan" } // Sorry Jan :(
-);
+  { name: 'Jan' } // Sorry Jan :(
+)
 
 // A slightly more advanced example
 let custom = data.query({
   sql: `SELECT * FROM myOtherTable WHERE id = :id AND active = :isActive`,
   continueAfterTimeout: true,
-  database: "myOtherDatabase",
-  parameters: [
-    { id: 123 },
-    { name: "isActive", value: { booleanValue: true } },
-  ],
-});
+  database: 'myOtherDatabase',
+  parameters: [{ id: 123 }, { name: 'isActive', value: { booleanValue: true } }]
+})
 ```
 
 ## Why do I need this?
@@ -84,29 +81,26 @@ let custom = data.query({
 The [Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) requires you to specify data types when passing in parameters. The basic `INSERT` example above would look like this using the native `RDSDataClient` class:
 
 ```javascript
-const {
-  RDSDataClient,
-  ExecuteStatementCommand,
-} = require("@aws-sdk/client-rds-data");
-const client = new RDSDataClient({ region: "us-east-1" });
+const { RDSDataClient, ExecuteStatementCommand } = require('@aws-sdk/client-rds-data')
+const client = new RDSDataClient({ region: 'us-east-1' })
 
 const params = {
-  secretArn: "arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret",
-  resourceArn: "arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name",
-  database: "myDatabase",
-  sql: "INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)",
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
+  database: 'myDatabase',
+  sql: 'INSERT INTO myTable (name,age,has_curls) VALUES(:name,:age,:curls)',
   parameters: [
-    { name: "name", value: { stringValue: "Cousin Oliver" } },
-    { name: "age", value: { longValue: 10 } },
-    { name: "curls", value: { booleanValue: false } },
-  ],
-};
+    { name: 'name', value: { stringValue: 'Cousin Oliver' } },
+    { name: 'age', value: { longValue: 10 } },
+    { name: 'curls', value: { booleanValue: false } }
+  ]
+}
 
-const command = new ExecuteStatementCommand(params);
+const command = new ExecuteStatementCommand(params)
 
 // async/await.
 try {
-  const data = await client.send(command);
+  const data = await client.send(command)
   // process data.
 } catch (error) {
   // error handling.
@@ -168,11 +162,11 @@ To use the Data API Client, require the module and instantiate it with your [Con
 
 ```javascript
 // Require and instantiate data-api-client with secret and cluster arns
-const data = require("data-api-client")({
-  secretArn: "arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret",
-  resourceArn: "arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name",
-  database: "myDatabase", // set a default database
-});
+const data = require('data-api-client')({
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
+  database: 'myDatabase' // set a default database
+})
 ```
 
 ### Running a query
@@ -180,17 +174,17 @@ const data = require("data-api-client")({
 Once initialized, running a query is super simple. Use the `query()` method and pass in your SQL statement:
 
 ```javascript
-let result = await data.query(`SELECT * FROM myTable`);
+let result = await data.query(`SELECT * FROM myTable`)
 ```
 
 By default, this will return your rows as an array of objects with column names as property names:
 
 ```javascript
-[
-  { id: 1, name: "Alice", age: null },
-  { id: 2, name: "Mike", age: 52 },
-  { id: 3, name: "Carol", age: 50 },
-];
+;[
+  { id: 1, name: 'Alice', age: null },
+  { id: 2, name: 'Mike', age: 52 },
+  { id: 3, name: 'Carol', age: 50 }
+]
 ```
 
 To query with parameters, you can use named parameters in your SQL, and then provider an object containing your parameters as the second argument to the `query()` method:
@@ -199,22 +193,19 @@ To query with parameters, you can use named parameters in your SQL, and then pro
 let result = await data.query(
   `
   SELECT * FROM myTable WHERE id = :id AND created > :createDate`,
-  { id: 2, createDate: "2019-06-01" }
-);
+  { id: 2, createDate: '2019-06-01' }
+)
 ```
 
 The Data API Client will automatically convert your parameters into the correct Data API parameter format using native JavaScript types. If you prefer to use the clunky format, or you need more control over the data type, you can just pass in the `RDSDataClient` format:
 
 ```javascript
-let result = await data.query(
-  `SELECT * FROM myTable WHERE id = :id AND created > :createDate`,
-  [
-    // An array of objects is totally cool, too. We'll merge them for you.
-    { id: 2 },
-    // Data API Client just passes this straight on through
-    { name: "createDate", value: { blobValue: new Buffer("2019-06-01") } },
-  ]
-);
+let result = await data.query(`SELECT * FROM myTable WHERE id = :id AND created > :createDate`, [
+  // An array of objects is totally cool, too. We'll merge them for you.
+  { id: 2 },
+  // Data API Client just passes this straight on through
+  { name: 'createDate', value: { blobValue: new Buffer('2019-06-01') } }
+])
 ```
 
 If you want even more control, you can pass in an `object` as the first parameter. This will allow you to add additional configuration options and override defaults as well.
@@ -236,10 +227,10 @@ Sometimes you might want to have _dynamic identifiers_ in your SQL statements. U
 
 ```javascript
 let result = await data.query(`SELECT ::fields FROM ::table WHERE id > :id`, {
-  fields: ["id", "name", "created"],
-  table: "table_" + someScaryUserInput, // someScaryUserInput = 123abc
-  id: 1,
-});
+  fields: ['id', 'name', 'created'],
+  table: 'table_' + someScaryUserInput, // someScaryUserInput = 123abc
+  id: 1
+})
 ```
 
 Which will produce a query like this:
@@ -256,28 +247,28 @@ The Aurora Data API can sometimes give you trouble with certain data types, such
 
 ```javascript
 const result = await data.query(
-  "INSERT INTO users(id, email, full_name, metadata) VALUES(:id, :email, :fullName, :metadata)",
+  'INSERT INTO users(id, email, full_name, metadata) VALUES(:id, :email, :fullName, :metadata)',
   [
     {
-      name: "id",
+      name: 'id',
       value: newUserId,
-      cast: "uuid",
+      cast: 'uuid'
     },
     {
-      name: "email",
-      value: email,
+      name: 'email',
+      value: email
     },
     {
-      name: "fullName",
-      value: fullName,
+      name: 'fullName',
+      value: fullName
     },
     {
-      name: "metadata",
+      name: 'metadata',
       value: JSON.stringify(userMetadata),
-      cast: "jsonb",
-    },
+      cast: 'jsonb'
+    }
   ]
-);
+)
 ```
 
 ### Batch Queries
@@ -287,10 +278,10 @@ The `RDSDataClient` Class provides a `batchExecuteStatement` method that allows 
 To issue a batch query, use the `query()` method (either by passing an object or using the two arity form), and provide multiple parameter sets as nested arrays. For example, if you wanted to update multiple records at once, your query might look like this:
 
 ```javascript
-let result = await data.query(
-  `UPDATE myTable SET name = :newName WHERE id = :id`,
-  [[{ id: 1, newName: "Alice Franklin" }], [{ id: 7, newName: "Jan Glass" }]]
-);
+let result = await data.query(`UPDATE myTable SET name = :newName WHERE id = :id`, [
+  [{ id: 1, newName: 'Alice Franklin' }],
+  [{ id: 7, newName: 'Jan Glass' }]
+])
 ```
 
 You can also use _named identifiers_ in batch queries, which will update and escape your SQL statement. **ONLY** parameters from the first parameter set will be used to update the query. Subsequent parameter sets will only update _named parameters_ supported by the Data API.
@@ -320,15 +311,12 @@ With a function to get the `insertId` from the previous query:
 ```javascript
 let results = await mysql
   .transaction()
-  .query("INSERT INTO myTable (name) VALUES(:name)", { name: "Tiger" })
-  .query((r) => [
-    "UPDATE myTable SET age = :age WHERE id = :id",
-    { age: 4, id: r.insertId },
-  ])
+  .query('INSERT INTO myTable (name) VALUES(:name)', { name: 'Tiger' })
+  .query((r) => ['UPDATE myTable SET age = :age WHERE id = :id', { age: 4, id: r.insertId }])
   .rollback((e, status) => {
     /* do something with the error */
   }) // optional
-  .commit(); // execute the queries
+  .commit() // execute the queries
 ```
 
 Transactions work with batch queries, too! 👊
@@ -454,19 +442,19 @@ In order to use the Data API, your execution environment requires several IAM pe
 
 ```yaml
 Statement:
-  - Effect: "Allow"
+  - Effect: 'Allow'
     Action:
-      - "rds-data:ExecuteSql"
-      - "rds-data:ExecuteStatement"
-      - "rds-data:BatchExecuteStatement"
-      - "rds-data:BeginTransaction"
-      - "rds-data:RollbackTransaction"
-      - "rds-data:CommitTransaction"
-    Resource: "*"
-  - Effect: "Allow"
+      - 'rds-data:ExecuteSql'
+      - 'rds-data:ExecuteStatement'
+      - 'rds-data:BatchExecuteStatement'
+      - 'rds-data:BeginTransaction'
+      - 'rds-data:RollbackTransaction'
+      - 'rds-data:CommitTransaction'
+    Resource: '*'
+  - Effect: 'Allow'
     Action:
-      - "secretsmanager:GetSecretValue"
-    Resource: "arn:aws:secretsmanager:{REGION}:{ACCOUNT-ID}:secret:{PATH-TO-SECRET}/*"
+      - 'secretsmanager:GetSecretValue'
+    Resource: 'arn:aws:secretsmanager:{REGION}:{ACCOUNT-ID}:secret:{PATH-TO-SECRET}/*'
 ```
 
 **JSON:**
