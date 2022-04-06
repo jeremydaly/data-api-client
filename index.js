@@ -572,7 +572,7 @@ const init = params => {
 
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: new AWS.RDSDataService(options)
+    RDS: params.AWS ? new params.AWS.RDSDataService(options) : new AWS.RDSDataService(options)
 
   } // end config
 
