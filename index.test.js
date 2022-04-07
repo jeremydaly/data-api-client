@@ -573,6 +573,34 @@ describe('querying', () => {
         [ 2, 'Category 2', 'Description of Category 2', '2019-11-12 22:17:11', '2019-11-12 22:21:36', null ]
       ])
     })
+
+    test('with pg lowercase typeName', async () => {
+      let { records, columnMetadata } = require('./test/sample-query-response.json')
+
+      columnMetadata.forEach(metadata => {
+        metadata.typeName = metadata.typeName.toLowerCase()
+      })
+
+      let result = formatRecords(records, columnMetadata, true)
+      expect(result).toEqual([
+        {
+          created: '2019-11-12 22:00:11',
+          deleted: null,
+          description: null,
+          id: 1,
+          modified: '2019-11-12 22:15:25',
+          name: 'Category 1'
+        },
+        {
+          created: '2019-11-12 22:17:11',
+          deleted: null,
+          description: 'Description of Category 2',
+          id: 2,
+          modified: '2019-11-12 22:21:36',
+          name: 'Category 2'
+        }
+      ])
+    })
   }) // end formatRecords
 
 
