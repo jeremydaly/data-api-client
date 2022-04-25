@@ -297,7 +297,7 @@ You can specify an optional `rollback()` method in the chain. This will receive 
 ```javascript
 let results = await mysql.transaction()
   .query('INSERT INTO myTable (name) VALUES(:name)', { name: 'Tiger' })
-  .query('UPDATE myTable SET age = :age WHERE name = :name' { age: 4, name: 'Tiger' })
+  .query('UPDATE myTable SET age = :age WHERE name = :name', { age: 4, name: 'Tiger' })
   .rollback((e,status) => { /* do something with the error */ }) // optional
   .commit() // execute the queries
 ```
