@@ -360,7 +360,7 @@ const formatRecordValue = (value, typeName, formatOptions) => {
       value,
       (formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE'
     )
-  } else if (typeName === 'JSON') {
+  } else if (['JSON', 'JSONB'].includes(typeName.toUpperCase())) {
     return JSON.parse(value)
   } else {
     return value
