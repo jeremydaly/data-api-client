@@ -351,16 +351,18 @@ const formatRecords = (recs, columns, hydrate, formatOptions) => {
 
 // Format record value based on its value, the database column's typeName and the formatting options
 const formatRecordValue = (value, typeName, formatOptions) => {
+  const standardizedTypeName = typeName ? typeName.toUpperCase() : typeName
+
   if (
     formatOptions &&
     formatOptions.deserializeDate &&
-    ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(typeName.toUpperCase())
+    ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(standardizedTypeName)
   ) {
     return formatFromTimeStamp(
       value,
-      (formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE'
+      (formatOptions && formatOptions.treatAsLocalDate) || standardizedTypeName === 'TIMESTAMP WITH TIME ZONE'
     )
-  } else if (typeName === 'JSON') {
+  } else if (standardizedTypeName === 'JSON') {
     return JSON.parse(value)
   } else {
     return value
