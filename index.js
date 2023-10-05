@@ -8,16 +8,22 @@
  * https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html
  *
  * @author Jeremy Daly <jeremy@jeremydaly.com>
+ * @author Sam Hulick <samh@reelcrafter.com>
  * @version 1.2.0
  * @license MIT
  */
 
-// Require the aws-sdk. This is a dev dependency, so if being used
-// outside of a Lambda execution environment, it must be manually installed.
-const AWS = require('aws-sdk')
+const {
+  RDSDataClient,
+  ExecuteStatementCommand,
+  BatchExecuteStatementCommand,
+  BeginTransactionCommand,
+  CommitTransactionCommand,
+  RollbackTransactionCommand
+} = require('@aws-sdk/client-rds-data');
 
 // Require sqlstring to add additional escaping capabilities
-const sqlString = require('sqlstring')
+const sqlString = require('sqlstring');
 
 // Supported value types in the Data API
 const supportedTypes = [
@@ -45,81 +51,94 @@ const parseSQL = (args) =>
   typeof args[0] === 'string'
     ? args[0]
     : typeof args[0] === 'object' && typeof args[0].sql === 'string'
-    ? args[0].sql
-    : error(`No 'sql' statement provided.`)
+      ? args[0].sql
+      : error('No \'sql\' statement provided.')
 
 // Parse the parameters from provided arguments
 const parseParams = (args) =>
   Array.isArray(args[0].parameters)
     ? args[0].parameters
     : typeof args[0].parameters === 'object'
-    ? [args[0].parameters]
-    : Array.isArray(args[1])
-    ? args[1]
-    : typeof args[1] === 'object'
-    ? [args[1]]
-    : args[0].parameters
-    ? error(`'parameters' must be an object or array`)
-    : args[1]
-    ? error('Parameters must be an object or array')
-    : []
+      ? [args[0].parameters]
+      : Array.isArray(args[1])
+        ? args[1]
+        : typeof args[1] === 'object'
+          ? [args[1]]
+          : args[0].parameters
+            ? error('\'parameters\' must be an object or array')
+            : args[1]
+              ? error('Parameters must be an object or array')
+              : []
 
 // Parse the supplied database, or default to config
 const parseDatabase = (config, args) =>
   config.transactionId
     ? config.database
     : typeof args[0].database === 'string'
-    ? args[0].database
-    : args[0].database
-    ? error(`'database' must be a string.`)
-    : config.database
-    ? config.database
-    : undefined // removed for #47 - error('No \'database\' provided.')
+      ? args[0].database
+      : args[0].database
+        ? error('\'database\' must be a string.')
+        : config.database
+          ? config.database
+          : undefined // removed for #47 - error('No \'database\' provided.')
 
 // Parse the supplied hydrateColumnNames command, or default to config
 const parseHydrate = (config, args) =>
   typeof args[0].hydrateColumnNames === 'boolean'
     ? args[0].hydrateColumnNames
     : args[0].hydrateColumnNames
-    ? error(`'hydrateColumnNames' must be a boolean.`)
-    : config.hydrateColumnNames
+      ? error('\'hydrateColumnNames\' must be a boolean.')
+      : config.hydrateColumnNames
 
 // Parse the supplied format options, or default to config
 const parseFormatOptions = (config, args) =>
   typeof args[0].formatOptions === 'object'
     ? {
-        deserializeDate:
+      deserializeDate:
           typeof args[0].formatOptions.deserializeDate === 'boolean'
             ? args[0].formatOptions.deserializeDate
             : args[0].formatOptions.deserializeDate
-            ? error(`'formatOptions.deserializeDate' must be a boolean.`)
-            : config.formatOptions.deserializeDate,
-        treatAsLocalDate:
-          typeof args[0].formatOptions.treatAsLocalDate == 'boolean'
+              ? error('\'formatOptions.deserializeDate\' must be a boolean.')
+              : config.formatOptions.deserializeDate,
+      treatAsLocalDate:
+          typeof args[0].formatOptions.treatAsLocalDate === 'boolean'
             ? args[0].formatOptions.treatAsLocalDate
             : args[0].formatOptions.treatAsLocalDate
-            ? error(`'formatOptions.treatAsLocalDate' must be a boolean.`)
-            : config.formatOptions.treatAsLocalDate
-      }
+              ? error('\'formatOptions.treatAsLocalDate\' must be a boolean.')
+              : config.formatOptions.treatAsLocalDate
+    }
     : args[0].formatOptions
-    ? error(`'formatOptions' must be an object.`)
-    : config.formatOptions
+      ? error('\'formatOptions\' must be an object.')
+      : config.formatOptions
 
 // Prepare method params w/ supplied inputs if an object is passed
 const prepareParams = ({ secretArn, resourceArn }, args) => {
   return Object.assign(
-    { secretArn, resourceArn }, // return Arns
-    typeof args[0] === 'object' ? omit(args[0], ['hydrateColumnNames', 'parameters']) : {} // merge any inputs
+    {
+      secretArn,
+      resourceArn
+    },
+    typeof args[0] === 'object'
+      ? omit(args[0], ['hydrateColumnNames', 'parameters'])
+      : {} // merge any inputs
   )
 }
 
 // Utility function for removing certain keys from an object
 const omit = (obj, values) =>
-  Object.keys(obj).reduce((acc, x) => (values.includes(x) ? acc : Object.assign(acc, { [x]: obj[x] })), {})
+  Object.keys(obj).reduce(
+    (acc, x) =>
+      values.includes(x) ? acc : Object.assign(acc, { [x]: obj[x] }),
+    {}
+  )
 
 // Utility function for picking certain keys from an object
 const pick = (obj, values) =>
-  Object.keys(obj).reduce((acc, x) => (values.includes(x) ? Object.assign(acc, { [x]: obj[x] }) : acc), {})
+  Object.keys(obj).reduce(
+    (acc, x) =>
+      values.includes(x) ? Object.assign(acc, { [x]: obj[x] }) : acc,
+    {}
+  )
 
 // Utility function for flattening arrays
 const flatten = (arr) => arr.reduce((acc, x) => acc.concat(x), [])
@@ -130,19 +149,38 @@ const normalizeParams = (params) =>
     (acc, p) =>
       Array.isArray(p)
         ? acc.concat([normalizeParams(p)])
-        : (Object.keys(p).length === 2 && p.name && typeof p.value !== 'undefined') ||
-          (Object.keys(p).length === 3 && p.name && typeof p.value !== 'undefined' && p.cast)
-        ? acc.concat(p)
-        : acc.concat(splitParams(p)),
+        : (Object.keys(p).length === 2 &&
+            p.name &&
+            typeof p.value !== 'undefined') ||
+          (Object.keys(p).length === 3 &&
+            p.name &&
+            typeof p.value !== 'undefined' &&
+            p.cast)
+          ? acc.concat(p)
+          : acc.concat(splitParams(p)),
     []
   ) // end reduce
 
 // Prepare parameters
-const processParams = (engine, sql, sqlParams, params, formatOptions, row = 0) => {
+const processParams = (
+  engine,
+  sql,
+  sqlParams,
+  params,
+  formatOptions,
+  row = 0
+) => {
   return {
     processedParams: params.reduce((acc, p) => {
       if (Array.isArray(p)) {
-        const result = processParams(engine, sql, sqlParams, p, formatOptions, row)
+        const result = processParams(
+          engine,
+          sql,
+          sqlParams,
+          p,
+          formatOptions,
+          row
+        )
         if (row === 0) {
           sql = result.escapedSql
           row++
@@ -152,7 +190,12 @@ const processParams = (engine, sql, sqlParams, params, formatOptions, row = 0) =
         if (sqlParams[p.name].type === 'n_ph') {
           if (p.cast) {
             const regex = new RegExp(':' + p.name + '\\b', 'g')
-            sql = sql.replace(regex, engine === 'pg' ? `:${p.name}::${p.cast}` : `CAST(:${p.name} AS ${p.cast})`)
+            sql = sql.replace(
+              regex,
+              engine === 'pg'
+                ? `:${p.name}::${p.cast}`
+                : `CAST(:${p.name} AS ${p.cast})`
+            )
           }
           acc.push(formatParam(p.name, p.value, formatOptions))
         } else if (row === 0) {
@@ -160,19 +203,20 @@ const processParams = (engine, sql, sqlParams, params, formatOptions, row = 0) =
           sql = sql.replace(regex, sqlString.escapeId(p.value))
         }
         return acc
-      } else {
-        return acc
       }
+      return acc
     }, []),
     escapedSql: sql
   }
 }
 
 // Converts parameter to the name/value format
-const formatParam = (n, v, formatOptions) => formatType(n, v, getType(v), getTypeHint(v), formatOptions)
+const formatParam = (n, v, formatOptions) =>
+  formatType(n, v, getType(v), getTypeHint(v), formatOptions)
 
 // Converts object params into name/value format
-const splitParams = (p) => Object.keys(p).reduce((arr, x) => arr.concat({ name: x, value: p[x] }), [])
+const splitParams = (p) =>
+  Object.keys(p).reduce((arr, x) => arr.concat({ name: x, value: p[x] }), [])
 
 // Get all the sql parameters and assign them types
 const getSqlParams = (sql) => {
@@ -203,22 +247,24 @@ const getType = (val) =>
   typeof val === 'string'
     ? 'stringValue'
     : typeof val === 'boolean'
-    ? 'booleanValue'
-    : typeof val === 'number' && parseInt(val) === val
-    ? 'longValue'
-    : typeof val === 'number' && parseFloat(val) === val
-    ? 'doubleValue'
-    : val === null
-    ? 'isNull'
-    : isDate(val)
-    ? 'stringValue'
-    : Buffer.isBuffer(val)
-    ? 'blobValue'
-    : // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
-    // TODO: there is a 'structValue' now for postgres
-    typeof val === 'object' && Object.keys(val).length === 1 && supportedTypes.includes(Object.keys(val)[0])
-    ? null
-    : undefined
+      ? 'booleanValue'
+      : typeof val === 'number' && parseInt(val) === val
+        ? 'longValue'
+        : typeof val === 'number' && parseFloat(val) === val
+          ? 'doubleValue'
+          : val === null
+            ? 'isNull'
+            : isDate(val)
+              ? 'stringValue'
+              : Buffer.isBuffer(val)
+                ? 'blobValue'
+                : // : Array.isArray(val) ? 'arrayValue' This doesn't work yet
+              // TODO: there is a 'structValue' now for postgres
+                typeof val === 'object' &&
+      Object.keys(val).length === 1 &&
+      supportedTypes.includes(Object.keys(val)[0])
+                  ? null
+                  : undefined
 
 // Hint to specify the underlying object type for data type mapping
 const getTypeHint = (val) => (isDate(val) ? 'TIMESTAMP' : undefined)
@@ -232,22 +278,25 @@ const formatType = (name, value, type, typeHint, formatOptions) => {
     type === null
       ? { value }
       : {
-          value: {
-            [type ? type : error(`'${name}' is an invalid type`)]:
+        value: {
+          [type ? type : error(`'${name}' is an invalid type`)]:
               type === 'isNull'
                 ? true
                 : isDate(value)
-                ? formatToTimeStamp(value, formatOptions && formatOptions.treatAsLocalDate)
-                : value
-          }
+                  ? formatToTimeStamp(
+                    value,
+                    formatOptions && formatOptions.treatAsLocalDate
+                  )
+                  : value
         }
+      }
   )
 } // end formatType
 
 // Formats the (UTC) date to the AWS accepted YYYY-MM-DD HH:MM:SS[.FFF] format
 // See https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html
 const formatToTimeStamp = (date, treatAsLocalDate) => {
-  const pad = (val, num = 2) => '0'.repeat(num - (val + '').length) + val
+  const pad = (val, num = 2) => '0'.repeat(num - String(val).length) + val
 
   const year = treatAsLocalDate ? date.getFullYear() : date.getUTCFullYear()
   const month = (treatAsLocalDate ? date.getMonth() : date.getUTCMonth()) + 1 // Convert to human month
@@ -256,18 +305,23 @@ const formatToTimeStamp = (date, treatAsLocalDate) => {
   const hours = treatAsLocalDate ? date.getHours() : date.getUTCHours()
   const minutes = treatAsLocalDate ? date.getMinutes() : date.getUTCMinutes()
   const seconds = treatAsLocalDate ? date.getSeconds() : date.getUTCSeconds()
-  const ms = treatAsLocalDate ? date.getMilliseconds() : date.getUTCMilliseconds()
+  const ms = treatAsLocalDate
+    ? date.getMilliseconds()
+    : date.getUTCMilliseconds()
 
   const fraction = ms <= 0 ? '' : `.${pad(ms, 3)}`
 
-  return `${year}-${pad(month)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}${fraction}`
+  return `${year}-${pad(month)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(
+    seconds
+  )}${fraction}`
 }
 
 // Converts the string value to a Date object.
 // If standard TIMESTAMP format (YYYY-MM-DD[ HH:MM:SS[.FFF]]) without TZ + treatAsLocalDate=false then assume UTC Date
 // In all other cases convert value to datetime as-is (also values with TZ info)
 const formatFromTimeStamp = (value, treatAsLocalDate) =>
-  !treatAsLocalDate && /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d+)?)?$/.test(value)
+  !treatAsLocalDate &&
+  /^\d{4}-\d{2}-\d{2}(\s\d{2}:\d{2}:\d{2}(\.\d{3})?)?$/.test(value)
     ? new Date(value + 'Z')
     : new Date(value)
 
@@ -287,90 +341,109 @@ const formatResults = (
 ) =>
   Object.assign(
     includeMeta ? { columnMetadata } : {},
-    numberOfRecordsUpdated !== undefined && !records ? { numberOfRecordsUpdated } : {},
+    numberOfRecordsUpdated !== undefined && !records
+      ? { numberOfRecordsUpdated }
+      : {},
     records
       ? {
-          records: formatRecords(records, columnMetadata, hydrate, formatOptions)
-        }
+        records: formatRecords(
+          records,
+          columnMetadata,
+          hydrate,
+          formatOptions
+        )
+      }
       : {},
     updateResults ? { updateResults: formatUpdateResults(updateResults) } : {},
-    generatedFields && generatedFields.length > 0 ? { insertId: generatedFields[0].longValue } : {}
+    generatedFields && generatedFields.length > 0
+      ? { insertId: generatedFields[0].longValue }
+      : {}
   )
 
 // Processes records and either extracts Typed Values into an array, or
 // object with named column labels
 const formatRecords = (recs, columns, hydrate, formatOptions) => {
   // Create map for efficient value parsing
-  let fmap =
+  const fmap =
     recs && recs[0]
       ? recs[0].map((x, i) => {
-          return Object.assign({}, columns ? { label: columns[i].label, typeName: columns[i].typeName } : {}) // add column label and typeName
-        })
+        return Object.assign(
+          {},
+          columns
+            ? { label: columns[i].label, typeName: columns[i].typeName }
+            : {}
+        ) // add column label and typeName
+      })
       : {}
 
   // Map over all the records (rows)
   return recs
     ? recs.map((rec) => {
-        // Reduce each field in the record (row)
-        return rec.reduce(
-          (acc, field, i) => {
-            // If the field is null, always return null
-            if (field.isNull === true) {
-              return hydrate // object if hydrate, else array
-                ? Object.assign(acc, { [fmap[i].label]: null })
-                : acc.concat(null)
+      // Reduce each field in the record (row)
+      return rec.reduce(
+        (acc, field, i) => {
+          // If the field is null, always return null
+          if (field.isNull === true) {
+            return hydrate // object if hydrate, else array
+              ? Object.assign(acc, { [fmap[i].label]: null })
+              : acc.concat(null)
 
-              // If the field is mapped, return the mapped field
-            } else if (fmap[i] && fmap[i].field) {
-              const value = formatRecordValue(field[fmap[i].field], fmap[i].typeName, formatOptions)
-              return hydrate // object if hydrate, else array
-                ? Object.assign(acc, { [fmap[i].label]: value })
-                : acc.concat(value)
+            // If the field is mapped, return the mapped field
+          } else if (fmap[i] && fmap[i].field) {
+            const value = formatRecordValue(
+              field[fmap[i].field],
+              fmap[i].typeName,
+              formatOptions
+            )
+            return hydrate // object if hydrate, else array
+              ? Object.assign(acc, { [fmap[i].label]: value })
+              : acc.concat(value)
 
-              // Else discover the field type
-            } else {
-              // Look for non-null fields
-              Object.keys(field).map((type) => {
-                if (type !== 'isNull' && field[type] !== null) {
-                  fmap[i]['field'] = type
-                }
-              })
-
-              // Return the mapped field (this should NEVER be null)
-              const value = formatRecordValue(field[fmap[i].field], fmap[i].typeName, formatOptions)
-              return hydrate // object if hydrate, else array
-                ? Object.assign(acc, { [fmap[i].label]: value })
-                : acc.concat(value)
+            // Else discover the field type
+          }
+          // Look for non-null fields
+          Object.keys(field).forEach((type) => {
+            if (type !== 'isNull' && field[type] !== null) {
+              fmap[i].field = type
             }
-          },
-          hydrate ? {} : []
-        ) // init object if hydrate, else init array
-      })
+          })
+
+          // Return the mapped field (this should NEVER be null)
+          const value = formatRecordValue(
+            field[fmap[i].field],
+            fmap[i].typeName,
+            formatOptions
+          )
+          return hydrate // object if hydrate, else array
+            ? Object.assign(acc, { [fmap[i].label]: value })
+            : acc.concat(value)
+        },
+        hydrate ? {} : []
+      ) // init object if hydrate, else init array
+    })
     : [] // empty record set returns an array
 } // end formatRecords
 
 // Format record value based on its value, the database column's typeName and the formatting options
-const formatRecordValue = (value, typeName, formatOptions) => {
-  if (
-    formatOptions &&
-    formatOptions.deserializeDate &&
-    ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(typeName.toUpperCase())
-  ) {
-    return formatFromTimeStamp(
+const formatRecordValue = (value, typeName, formatOptions) =>
+  formatOptions &&
+  formatOptions.deserializeDate &&
+  ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'].includes(
+    typeName
+  )
+    ? formatFromTimeStamp(
       value,
-      (formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE'
+      (formatOptions && formatOptions.treatAsLocalDate) ||
+          typeName === 'TIMESTAMP WITH TIME ZONE'
     )
-  } else if (typeName === 'JSON') {
-    return JSON.parse(value)
-  } else {
-    return value
-  }
-}
+    : value
 
 // Format updateResults and extract insertIds
 const formatUpdateResults = (res) =>
   res.map((x) => {
-    return x.generatedFields && x.generatedFields.length > 0 ? { insertId: x.generatedFields[0].longValue } : {}
+    return x.generatedFields && x.generatedFields.length > 0
+      ? { insertId: x.generatedFields[0].longValue }
+      : {}
   })
 
 // Merge configuration data with supplied arguments
@@ -399,10 +472,17 @@ const query = async function (config, ..._args) {
   const parameters = normalizeParams(parseParams(args))
 
   // Process parameters and escape necessary SQL
-  const { processedParams, escapedSql } = processParams(config.engine, sql, sqlParams, parameters, formatOptions)
+  const { processedParams, escapedSql } = processParams(
+    config.engine,
+    sql,
+    sqlParams,
+    parameters,
+    formatOptions
+  )
 
   // Determine if this is a batch request
-  const isBatch = processedParams.length > 0 && Array.isArray(processedParams[0])
+  const isBatch =
+    processedParams.length > 0 && Array.isArray(processedParams[0])
 
   // Create/format the parameters
   const params = Object.assign(
@@ -414,7 +494,7 @@ const query = async function (config, ..._args) {
     // Only include parameters if they exist
     processedParams.length > 0
       ? // Batch statements require parameterSets instead of parameters
-        { [isBatch ? 'parameterSets' : 'parameters']: processedParams }
+      { [isBatch ? 'parameterSets' : 'parameters']: processedParams }
       : {},
     // Force meta data if set and not a batch
     hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {},
@@ -426,17 +506,24 @@ const query = async function (config, ..._args) {
     // attempt to run the query
 
     // Capture the result for debugging
-    let result = await (isBatch
-      ? config.RDS.batchExecuteStatement(params).promise()
-      : config.RDS.executeStatement(params).promise())
+    const result = await (isBatch
+      ? config.RDS.send(new BatchExecuteStatementCommand(params))
+      : config.RDS.send(new ExecuteStatementCommand(params)))
 
     // Format and return the results
-    return formatResults(result, hydrateColumnNames, args[0].includeResultMetadata === true, formatOptions)
+    return formatResults(
+      result,
+      hydrateColumnNames,
+      args[0].includeResultMetadata === true,
+      formatOptions
+    )
   } catch (e) {
     if (this && this.rollback) {
-      let rollback = await config.RDS.rollbackTransaction(
-        pick(params, ['resourceArn', 'secretArn', 'transactionId'])
-      ).promise()
+      const rollback = await config.RDS.send(
+        new RollbackTransactionCommand(
+          pick(params, ['resourceArn', 'secretArn', 'transactionId'])
+        )
+      )
 
       this.rollback(e, rollback)
     }
@@ -451,8 +538,9 @@ const query = async function (config, ..._args) {
 
 // Init a transaction object and return methods
 const transaction = (config, _args) => {
-  let args = typeof _args === 'object' ? [_args] : [{}]
-  let queries = [] // keep track of queries
+  const args = typeof _args === 'object' ? [_args] : [{}]
+  const queries = [] // keep track of queries
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   let rollback = () => {} // default rollback event
 
   const txConfig = Object.assign(prepareParams(config, args), {
@@ -463,7 +551,7 @@ const transaction = (config, _args) => {
   })
 
   return {
-    query: function (...args) {
+    query(...args) {
       if (typeof args[0] === 'function') {
         queries.push(args[0])
       } else {
@@ -471,42 +559,49 @@ const transaction = (config, _args) => {
       }
       return this
     },
-    rollback: function (fn) {
+    rollback(fn) {
       if (typeof fn === 'function') {
         rollback = fn
       }
       return this
     },
-    commit: async function () {
-      return await commit(txConfig, queries, rollback)
+    async commit() {
+      return commit(txConfig, queries, rollback)
     }
   }
 }
 
 // Commit transaction by running queries
 const commit = async (config, queries, rollback) => {
-  let results = [] // keep track of results
+  const results = [] // keep track of results
 
   // Start a transaction
-  const { transactionId } = await config.RDS.beginTransaction(
-    pick(config, ['resourceArn', 'secretArn', 'database'])
-  ).promise()
+  const { transactionId } = await config.RDS.send(
+    new BeginTransactionCommand(
+      pick(config, ['resourceArn', 'secretArn', 'database'])
+    )
+  )
 
   // Add transactionId to the config
-  let txConfig = Object.assign(config, { transactionId })
+  const txConfig = Object.assign(config, { transactionId })
 
   // Loop through queries
   for (let i = 0; i < queries.length; i++) {
     // Execute the queries, pass the rollback as context
-    let result = await query.apply({ rollback }, [config, queries[i](results[results.length - 1], results)])
+    const result = await query.apply({ rollback }, [
+      config,
+      queries[i](results[results.length - 1], results)
+    ])
     // Add the result to the main results accumulator
     results.push(result)
   }
 
   // Commit our transaction
-  const { transactionStatus } = await txConfig.RDS.commitTransaction(
-    pick(config, ['resourceArn', 'secretArn', 'transactionId'])
-  ).promise()
+  const { transactionStatus } = await txConfig.RDS.send(
+    new CommitTransactionCommand(
+      pick(config, ['resourceArn', 'secretArn', 'transactionId'])
+    )
+  )
 
   // Add the transaction status to the results
   results.push({ transactionStatus })
@@ -546,8 +641,8 @@ const init = (params) => {
     typeof params.options === 'object'
       ? params.options
       : params.options !== undefined
-      ? error(`'options' must be an object`)
-      : {}
+        ? error('\'options\' must be an object')
+        : {}
 
   // Update the AWS http agent with the region
   if (typeof params.region === 'string') {
@@ -565,19 +660,24 @@ const init = (params) => {
     engine: typeof params.engine === 'string' ? params.engine : 'mysql',
 
     // Require secretArn
-    secretArn: typeof params.secretArn === 'string' ? params.secretArn : error(`'secretArn' string value required`),
+    secretArn:
+      typeof params.secretArn === 'string'
+        ? params.secretArn
+        : error('\'secretArn\' string value required'),
 
     // Require resourceArn
     resourceArn:
-      typeof params.resourceArn === 'string' ? params.resourceArn : error(`'resourceArn' string value required`),
+      typeof params.resourceArn === 'string'
+        ? params.resourceArn
+        : error('\'resourceArn\' string value required'),
 
     // Load optional database
     database:
       typeof params.database === 'string'
         ? params.database
         : params.database !== undefined
-        ? error(`'database' must be a string`)
-        : undefined,
+          ? error('\'database\' must be a string')
+          : undefined,
 
     // Load optional schema DISABLED for now since this isn't used with MySQL
     // schema: typeof params.schema === 'string' ? params.schema
@@ -585,18 +685,25 @@ const init = (params) => {
     //   : undefined,
 
     // Set hydrateColumnNames (default to true)
-    hydrateColumnNames: typeof params.hydrateColumnNames === 'boolean' ? params.hydrateColumnNames : true,
+    hydrateColumnNames:
+      typeof params.hydrateColumnNames === 'boolean'
+        ? params.hydrateColumnNames
+        : true,
 
     // Value formatting options. For date the deserialization is enabled and (re)stored as UTC
     formatOptions: {
       deserializeDate:
-        typeof params.formatOptions === 'object' && params.formatOptions.deserializeDate === false ? false : true,
-      treatAsLocalDate: typeof params.formatOptions === 'object' && params.formatOptions.treatAsLocalDate
+        typeof params.formatOptions === 'object' &&
+        params.formatOptions.deserializeDate === false
+          ? false
+          : true,
+      treatAsLocalDate:
+        typeof params.formatOptions === 'object' &&
+        params.formatOptions.treatAsLocalDate
     },
 
-    // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataService
-    RDS: params.AWS ? new params.AWS.RDSDataService(options) : new AWS.RDSDataService(options)
+    RDS: new RDSDataClient(options)
   } // end config
 
   // Return public methods
@@ -605,20 +712,21 @@ const init = (params) => {
     query: (...x) => query(config, ...x),
     // Transaction method, pass config and parameters
     transaction: (x) => transaction(config, x),
-
-    // Export promisified versions of the RDSDataService methods
     batchExecuteStatement: (args) =>
-      config.RDS.batchExecuteStatement(
+      config.RDS.send(new BatchExecuteStatementCommand(
         mergeConfig(pick(config, ['resourceArn', 'secretArn', 'database']), args)
-      ).promise(),
+      )),
     beginTransaction: (args) =>
-      config.RDS.beginTransaction(mergeConfig(pick(config, ['resourceArn', 'secretArn', 'database']), args)).promise(),
+      config.RDS.send(
+        new BeginTransactionCommand(mergeConfig(pick(config, ['resourceArn', 'secretArn', 'database']), args))),
     commitTransaction: (args) =>
-      config.RDS.commitTransaction(mergeConfig(pick(config, ['resourceArn', 'secretArn']), args)).promise(),
+      config.RDS.send(
+        new CommitTransactionCommand(mergeConfig(pick(config, ['resourceArn', 'secretArn']), args))),
     executeStatement: (args) =>
-      config.RDS.executeStatement(mergeConfig(pick(config, ['resourceArn', 'secretArn', 'database']), args)).promise(),
+      config.RDS.send(new ExecuteStatementCommand(mergeConfig(pick(config, ['resourceArn', 'secretArn', 'database']), args))),
     rollbackTransaction: (args) =>
-      config.RDS.rollbackTransaction(mergeConfig(pick(config, ['resourceArn', 'secretArn']), args)).promise()
+      config.RDS.send(
+        new RollbackTransactionCommand(mergeConfig(pick(config, ['resourceArn', 'secretArn']), args)))
   }
 } // end exports
 
