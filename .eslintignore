@@ -1,4 +1,7 @@
 coverage
 node_modules
 test
+dist
 *.test.js
+*.test.ts
+vitest.config.mjs
