@@ -4,6 +4,17 @@ node_modules
 # Optional npm cache directory
 .npm
 
+# Build output
+dist/
+
+# Coverage
+coverage/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 dump.rdb
 .vscode
 .idea
