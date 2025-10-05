@@ -1,0 +1,306 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Aurora Serverless v2 clusters for data-api-client integration testing'
+
+Parameters:
+  MasterUsername:
+    Type: String
+    Default: testadmin
+    Description: Master username for both databases
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+  MasterPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for both databases (min 8 characters)
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: '[a-zA-Z0-9]*'
+
+  DatabaseName:
+    Type: String
+    Default: testdb
+    Description: Default database name
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+  SecondsUntilAutoPause:
+    Type: Number
+    Default: 300
+    Description: Seconds of inactivity before auto-pause (300-86400, i.e., 5 min to 24 hours)
+    MinValue: 300
+    MaxValue: 86400
+
+Resources:
+  # VPC for Aurora clusters
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-vpc'
+
+  # Internet Gateway for VPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-igw'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Subnets in different AZs
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-subnet-a'
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-subnet-b'
+
+  # Route Table
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-rt'
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref RouteTable
+
+  SubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      RouteTableId: !Ref RouteTable
+
+  # DB Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora Serverless v2 test clusters
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-db-subnet-group'
+
+  # Security Group for Aurora clusters
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Aurora Serverless v2 test clusters
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+          Description: MySQL access
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+          Description: PostgreSQL access
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-db-sg'
+
+  # MySQL Secrets Manager Secret
+  MySQLSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-mysql-secret'
+      Description: Master credentials for MySQL Aurora Serverless v2 test cluster
+      SecretString: !Sub |
+        {
+          "username": "${MasterUsername}",
+          "password": "${MasterPassword}"
+        }
+
+  # PostgreSQL Secrets Manager Secret
+  PostgreSQLSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-postgres-secret'
+      Description: Master credentials for PostgreSQL Aurora Serverless v2 test cluster
+      SecretString: !Sub |
+        {
+          "username": "${MasterUsername}",
+          "password": "${MasterPassword}"
+        }
+
+  # MySQL Aurora Serverless v2 Cluster
+  MySQLCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-mysql
+      EngineVersion: 8.0.mysql_aurora.3.08.0
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+      EnableHttpEndpoint: true
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0
+        MaxCapacity: 1
+        SecondsUntilAutoPause: !Ref SecondsUntilAutoPause
+      BackupRetentionPeriod: 1
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'mon:04:00-mon:05:00'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-mysql-cluster'
+
+  # MySQL Aurora Instance
+  MySQLInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref MySQLCluster
+      DBInstanceClass: db.serverless
+      PubliclyAccessible: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-mysql-instance'
+
+  # Attach Secret to MySQL Cluster
+  MySQLSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref MySQLSecret
+      TargetId: !Ref MySQLCluster
+      TargetType: AWS::RDS::DBCluster
+
+  # PostgreSQL Aurora Serverless v2 Cluster
+  PostgreSQLCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: '17.4'
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+      EnableHttpEndpoint: true
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0
+        MaxCapacity: 1
+        SecondsUntilAutoPause: !Ref SecondsUntilAutoPause
+      BackupRetentionPeriod: 1
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'mon:04:00-mon:05:00'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-postgres-cluster'
+
+  # PostgreSQL Aurora Instance
+  PostgreSQLInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref PostgreSQLCluster
+      DBInstanceClass: db.serverless
+      PubliclyAccessible: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-postgres-instance'
+
+  # Attach Secret to PostgreSQL Cluster
+  PostgreSQLSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref PostgreSQLSecret
+      TargetId: !Ref PostgreSQLCluster
+      TargetType: AWS::RDS::DBCluster
+
+Outputs:
+  MySQLClusterArn:
+    Description: ARN of the MySQL Aurora Serverless v2 cluster
+    Value: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${MySQLCluster}'
+    Export:
+      Name: !Sub '${AWS::StackName}-mysql-cluster-arn'
+
+  MySQLSecretArn:
+    Description: ARN of the MySQL Secrets Manager secret
+    Value: !Ref MySQLSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-mysql-secret-arn'
+
+  MySQLEndpoint:
+    Description: MySQL cluster endpoint
+    Value: !GetAtt MySQLCluster.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-mysql-endpoint'
+
+  PostgreSQLClusterArn:
+    Description: ARN of the PostgreSQL Aurora Serverless v2 cluster
+    Value: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${PostgreSQLCluster}'
+    Export:
+      Name: !Sub '${AWS::StackName}-postgres-cluster-arn'
+
+  PostgreSQLSecretArn:
+    Description: ARN of the PostgreSQL Secrets Manager secret
+    Value: !Ref PostgreSQLSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-postgres-secret-arn'
+
+  PostgreSQLEndpoint:
+    Description: PostgreSQL cluster endpoint
+    Value: !GetAtt PostgreSQLCluster.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-postgres-endpoint'
+
+  DatabaseName:
+    Description: Default database name
+    Value: !Ref DatabaseName
+    Export:
+      Name: !Sub '${AWS::StackName}-database-name'
+
+  Region:
+    Description: AWS Region
+    Value: !Ref AWS::Region
+    Export:
+      Name: !Sub '${AWS::StackName}-region'
