@@ -1,12 +1,21 @@
 {
   "name": "data-api-client",
-  "version": "1.3.1",
+  "version": "2.0.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "jest",
-    "test-ci": "eslint . && jest",
-    "lint": "eslint ."
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "prebuild": "rm -rf dist",
+    "test": "npm run build && vitest run src/",
+    "test:unit": "npm run build && vitest run src/",
+    "test:int": "npm run build && vitest run integration-tests/",
+    "test:int:mysql": "npm run build && vitest run integration-tests/mysql.int.test.ts",
+    "test:int:postgres": "npm run build && vitest run integration-tests/postgres.int.test.ts",
+    "test-ci": "npm run build && eslint src && vitest run src/",
+    "lint": "eslint src",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -24,18 +33,37 @@
     "url": "https://github.com/jeremydaly/data-api-client/issues"
   },
   "homepage": "https://github.com/jeremydaly/data-api-client#readme",
+  "imports": {
+    "#fixtures/*": "./fixtures/*"
+  },
   "devDependencies": {
-    "aws-sdk": "^2.811.0",
+    "@aws-sdk/client-rds-data": "^3.712.0",
+    "@types/node": "^24.6.2",
+    "@types/pg-escape": "^0.2.3",
+    "@types/sqlstring": "^2.3.2",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^8.12.0",
     "eslint-config-prettier": "^8.5.0",
-    "jest": "^27.5.1",
     "prettier": "^2.6.2",
-    "rewire": "^6.0.0"
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
+    "pg-escape": "^0.2.0",
     "sqlstring": "^2.3.2"
   },
+  "peerDependencies": {
+    "@aws-sdk/client-rds-data": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-rds-data": {
+      "optional": true
+    }
+  },
   "files": [
-    "index.js"
+    "dist"
   ]
 }

@@ -1,0 +1,65 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, v2.0.0]
+  pull_request:
+    branches: [main, v2.0.0]
+  workflow_dispatch:
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: GitHubActions-Publish
+
+      - name: Run MySQL integration tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/mysql.int.test.ts
+
+      - name: Run PostgreSQL integration tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/postgres.int.test.ts
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
