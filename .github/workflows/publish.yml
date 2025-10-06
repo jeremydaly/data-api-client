@@ -14,6 +14,9 @@ jobs:
   test-and-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout code
@@ -41,9 +44,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: GitHubActions-Publish
 
       - name: Run MySQL integration tests
         env:
@@ -51,7 +54,7 @@ jobs:
           MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
           MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: npx vitest run integration-tests/mysql.integration.test.ts
+        run: npx vitest run integration-tests/mysql.int.test.ts
 
       - name: Run PostgreSQL integration tests
         env:
@@ -59,7 +62,7 @@ jobs:
           POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
           POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: npx vitest run integration-tests/postgres.integration.test.ts
+        run: npx vitest run integration-tests/postgres.int.test.ts
 
       - name: Update version (if specified)
         if: github.event.inputs.version != ''
