@@ -260,7 +260,8 @@ describe('parameter processing', () => {
         ],
         { deserializeDate: false, treatAsLocalDate: false }
       )
-      expect(escapedSql).toBe('SELECT `testColumn` FROM myTable WHERE id = :id AND id2 = :id2')
+      // PostgreSQL uses pg-escape which only adds quotes when necessary (spaces, reserved words, etc.)
+      expect(escapedSql).toBe('SELECT testColumn FROM myTable WHERE id = :id AND id2 = :id2')
       expect(processedParams).toEqual([
         { name: 'id', value: { longValue: 1 } },
         { name: 'id2', value: { longValue: 2 } }
@@ -331,7 +332,8 @@ describe('parameter processing', () => {
         ] as any,
         { deserializeDate: false, treatAsLocalDate: false }
       )
-      expect(escapedSql).toBe('SELECT `testColumn` FROM myTable WHERE id = :id AND id2 = :id2')
+      // PostgreSQL uses pg-escape which only adds quotes when necessary (spaces, reserved words, etc.)
+      expect(escapedSql).toBe('SELECT testColumn FROM myTable WHERE id = :id AND id2 = :id2')
       expect(processedParams).toEqual([
         [
           { name: 'id', value: { longValue: 1 } },
@@ -357,10 +359,11 @@ describe('parameter processing', () => {
         { deserializeDate: false, treatAsLocalDate: false }
       )
       expect(escapedSql).toBe('INSERT INTO users(id, name, meta) VALUES(:id::uuid, :name, :meta::jsonb)')
+      // Auto-detection now adds typeHint for UUID and JSON formats
       expect(processedParams).toEqual([
-        { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
+        { name: 'id', typeHint: 'UUID', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
         { name: 'name', value: { stringValue: 'Test' } },
-        { name: 'meta', value: { stringValue: '{"extra": true}' } }
+        { name: 'meta', typeHint: 'JSON', value: { stringValue: '{"extra": true}' } }
       ])
     })
   })

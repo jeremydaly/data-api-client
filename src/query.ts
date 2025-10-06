@@ -72,6 +72,8 @@ export const query = async function (
 
   try {
     // attempt to run the query
+    // console.log(`Executing ${isBatch ? 'batch ' : ''}query: `, params)
+    // console.log(`Query parameters: `, JSON.stringify(params.parameters ?? params.parameterSets, null, 2))
 
     // Capture the result for debugging
     const result: ExecuteStatementCommandOutput | BatchExecuteStatementCommandOutput = await (isBatch
