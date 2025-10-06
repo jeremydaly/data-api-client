@@ -4,11 +4,7 @@
  * Result formatting and record processing functions
  */
 
-import type {
-  ExecuteStatementCommandOutput,
-  BatchExecuteStatementCommandOutput,
-  Field
-} from '@aws-sdk/client-rds-data'
+import type { ExecuteStatementCommandOutput, BatchExecuteStatementCommandOutput, Field } from '@aws-sdk/client-rds-data'
 import type { QueryResult, UpdateResult, FormatOptions } from './types'
 import { formatFromTimeStamp } from './utils'
 
@@ -19,6 +15,8 @@ export const formatResults = (
   includeMeta: boolean,
   formatOptions: Required<FormatOptions>
 ): QueryResult => {
+  // console.log('Raw result: ', JSON.stringify(result, null, 2))
+
   const {
     // destructure results
     columnMetadata, // ONLY when hydrate or includeResultMetadata is true
@@ -49,6 +47,8 @@ export const formatRecords = (
   hydrate: boolean,
   formatOptions: Required<FormatOptions>
 ): any[] => {
+  // console.log(`Formatting:`, recs, columns)
+
   // Create map for efficient value parsing
   const fmap: Array<{ label?: string; typeName?: string; field?: string }> =
     recs && recs[0]
@@ -71,6 +71,8 @@ export const formatRecords = (
 
               // If the field is mapped, return the mapped field
             } else if (fmap[i] && fmap[i].field) {
+              // console.log(`Using mapped field for ${fmap[i].label}: ${fmap[i].field}`)
+
               const value = formatRecordValue((field as any)[fmap[i].field!], fmap[i].typeName, formatOptions)
               return hydrate // object if hydrate, else array
                 ? Object.assign(acc, { [fmap[i].label!]: value })
@@ -78,6 +80,8 @@ export const formatRecords = (
 
               // Else discover the field type
             } else {
+              // console.log(`Discovering field for ${fmap[i].label}:`, field)
+
               // Look for non-null fields
               Object.keys(field).map((type) => {
                 if (type !== 'isNull' && (field as any)[type] !== null) {
@@ -98,12 +102,47 @@ export const formatRecords = (
     : [] // empty record set returns an array
 } // end formatRecords
 
+// Flatten arrayValue from RDS Data API into native JavaScript arrays
+const flattenArrayValue = (arrayValue: any): any[] => {
+  if (!arrayValue) return []
+
+  // Handle primitive array types
+  if (arrayValue.stringValues) return arrayValue.stringValues.slice()
+  if (arrayValue.longValues) return arrayValue.longValues.slice()
+  if (arrayValue.doubleValues) return arrayValue.doubleValues.slice()
+  if (arrayValue.booleanValues) return arrayValue.booleanValues.slice()
+
+  // Handle nested arrays (e.g., int[][], text[][])
+  if (arrayValue.arrayValues) {
+    return arrayValue.arrayValues.map((nested: any) => flattenArrayValue(nested.arrayValue || nested))
+  }
+
+  // Empty array
+  return []
+}
+
 // Format record value based on its value, the database column's typeName and the formatting options
 export const formatRecordValue = (
   value: any,
   typeName: string | undefined,
   formatOptions: Required<FormatOptions>
 ): any => {
+  // console.log(`Formatting value:`, { value, typeName, formatOptions })
+
+  // Convert Uint8Array to Buffer for binary types
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value)
+  }
+
+  // console.log(typeof value === 'object', 'arrayValue' in value, typeName, typeName!.startsWith('_'))
+  // console.log(value)
+
+  // Handle arrayValue from Data API (PostgreSQL arrays)
+  if (value && typeof value === 'object' && typeName && typeName.startsWith('_')) {
+    return flattenArrayValue(value)
+  }
+
+  // Handle type-specific formatting
   if (
     formatOptions &&
     formatOptions.deserializeDate &&
@@ -116,6 +155,9 @@ export const formatRecordValue = (
     )
   } else if (typeName === 'JSON') {
     return JSON.parse(value)
+  } else if (typeName === 'YEAR') {
+    // MySQL YEAR type - convert string to integer
+    return typeof value === 'string' ? parseInt(value, 10) : value
   } else {
     return value
   }
