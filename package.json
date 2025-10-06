@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "2.0.0.beta.1",
+  "version": "2.0.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,9 +10,9 @@
     "prebuild": "rm -rf dist",
     "test": "npm run build && vitest run src/",
     "test:unit": "npm run build && vitest run src/",
-    "test:integration": "npm run build && vitest run integration-tests/",
-    "test:integration:mysql": "npm run build && vitest run integration-tests/mysql.integration.test.ts",
-    "test:integration:postgres": "npm run build && vitest run integration-tests/postgres.integration.test.ts",
+    "test:int": "npm run build && vitest run integration-tests/",
+    "test:int:mysql": "npm run build && vitest run integration-tests/mysql.int.test.ts",
+    "test:int:postgres": "npm run build && vitest run integration-tests/postgres.int.test.ts",
     "test-ci": "npm run build && eslint src && vitest run src/",
     "lint": "eslint src",
     "prepublishOnly": "npm run build"
