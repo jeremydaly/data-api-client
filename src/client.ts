@@ -20,7 +20,7 @@ import { transaction } from './transaction'
 /**
  * Create a Data API client instance
  * @param {object} params
- * @param {'mysql'|'pg'} [params.engine=mysql] The type of database (MySQL or Postgres)
+ * @param {'mysql'|'pg'} [params.engine=pg] The type of database (MySQL or Postgres)
  * @param {string} params.resourceArn The ARN of your Aurora Serverless Cluster
  * @param {string} params.secretArn The ARN of the secret associated with your
  *   database credentials
@@ -61,7 +61,7 @@ export const init = (params: DataAPIClientConfig): DataAPIClient => {
   // Set the configuration for this instance
   const config: InternalConfig = {
     // Require engine
-    engine: typeof params.engine === 'string' ? params.engine : 'mysql',
+    engine: typeof params.engine === 'string' ? params.engine : 'pg',
 
     // Require secretArn
     secretArn: typeof params.secretArn === 'string' ? params.secretArn : error(`'secretArn' string value required`),

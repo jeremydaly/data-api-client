@@ -120,10 +120,78 @@ export const getType = (val: ParameterValue): SupportedType | null | undefined =
     ? null
     : undefined
 
-// Hint to specify the underlying object type for data type mapping
-export const getTypeHint = (val: ParameterValue): string | undefined => (isDate(val) ? 'TIMESTAMP' : undefined)
+// Helper functions to detect type hint formats
 
+// Check if value is a Date object
 export const isDate = (val: any): val is Date => val instanceof Date
+
+// Check if string matches DATE format: YYYY-MM-DD
+export const isDateString = (val: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}$/.test(val)
+
+// Check if string matches TIME format: HH:MM:SS[.FFF]
+export const isTimeString = (val: string): boolean =>
+  /^\d{2}:\d{2}:\d{2}(\.\d{1,3})?$/.test(val)
+
+// Check if string matches DECIMAL format (numeric string with decimal point)
+export const isDecimalString = (val: string): boolean =>
+  /^-?\d+\.\d+$/.test(val)
+
+// Check if string matches UUID format
+export const isUUIDString = (val: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+
+// Check if string is valid JSON (object or array)
+export const isJSONString = (val: string): boolean => {
+  if (typeof val !== 'string') return false
+  const trimmed = val.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false
+  try {
+    const parsed = JSON.parse(val)
+    return typeof parsed === 'object' && parsed !== null
+  } catch {
+    return false
+  }
+}
+
+// Hint to specify the underlying object type for data type mapping
+// Auto-detects typeHint based on value format to prevent type errors
+export const getTypeHint = (val: ParameterValue): string | undefined => {
+  // Date objects → TIMESTAMP
+  if (isDate(val)) {
+    return 'TIMESTAMP'
+  }
+
+  // Auto-detect string formats for type hints
+  if (typeof val === 'string') {
+    // UUID format (most specific, check first)
+    if (isUUIDString(val)) {
+      return 'UUID'
+    }
+
+    // DATE format: YYYY-MM-DD
+    if (isDateString(val)) {
+      return 'DATE'
+    }
+
+    // TIME format: HH:MM:SS[.FFF]
+    if (isTimeString(val)) {
+      return 'TIME'
+    }
+
+    // JSON format (objects/arrays)
+    if (isJSONString(val)) {
+      return 'JSON'
+    }
+
+    // DECIMAL format (numeric with decimal point)
+    if (isDecimalString(val)) {
+      return 'DECIMAL'
+    }
+  }
+
+  return undefined
+}
 
 // Formats the (UTC) date to the AWS accepted YYYY-MM-DD HH:MM:SS[.FFF] format
 // See https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html
