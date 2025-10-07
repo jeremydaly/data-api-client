@@ -10,6 +10,9 @@ dist/
 # Coverage
 coverage/
 
+# Temporary files
+tmp/
+
 # Environment variables
 .env
 .env.local
