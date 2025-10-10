@@ -7,13 +7,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { createMySQLConnection, createMySQLPool } from '../src/compat/mysql2'
-import {
-  loadConfig,
-  executeSQL,
-  waitForCluster,
-  mysqlTables,
-  type IntegrationTestConfig
-} from './setup'
+import { loadConfig, executeSQL, waitForCluster, mysqlTables, type IntegrationTestConfig } from './setup'
 
 describe('MySQL2 Compatibility - Connection', () => {
   let config: IntegrationTestConfig
