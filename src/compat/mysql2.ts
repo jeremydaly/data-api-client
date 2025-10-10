@@ -122,15 +122,58 @@ export interface MySQL2Pool extends EventEmitter {
 }
 
 /**
- * Convert MySQL ? placeholders to named parameters :p1, :p2, ...
+ * Convert MySQL ? placeholders to named parameters :param1, :param2, ...
+ * Handles DEFAULT keywords by removing those columns from INSERT statements.
  */
 function convertMySQLPlaceholders(sql: string, params: any[] = []): { sql: string; params: Record<string, any> } {
   const namedParams: Record<string, any> = {}
+  let processedSql = sql
   let paramIndex = 0
 
-  const convertedSql = sql.replace(/\?/g, () => {
+  // Step 1: Handle INSERT statements with DEFAULT keywords
+  // Match: INSERT INTO table (col1, col2, ...) VALUES ...
+  const insertRegex = /insert\s+into\s+([`\w]+)\s*\(([^)]+)\)\s*values\s*(.+)/gi
+
+  processedSql = processedSql.replace(insertRegex, (match, table, columnsPart, allValuesPart) => {
+    const columns = columnsPart.split(',').map((c: string) => c.trim())
+
+    // Extract all value sets: (val1, val2), (val3, val4), ...
+    const valueSetsRegex = /\(([^)]+)\)/g
+    const valueSets: string[] = []
+    let valueSetMatch
+    while ((valueSetMatch = valueSetsRegex.exec(allValuesPart)) !== null) {
+      valueSets.push(valueSetMatch[1])
+    }
+
+    if (valueSets.length === 0) return match
+
+    // Check first value set to see which columns have DEFAULT
+    const firstValues = valueSets[0].split(',').map((v: string) => v.trim())
+    const filtered = columns
+      .map((col: string, i: number) => ({ col, idx: i, hasDefault: firstValues[i]?.toLowerCase() === 'default' }))
+      .filter((item: { col: string; idx: number; hasDefault: boolean }) => !item.hasDefault)
+
+    if (filtered.length === columns.length) {
+      // No DEFAULTs found, return as-is
+      return match
+    }
+
+    // Rebuild all value sets without DEFAULT positions
+    const newValueSets = valueSets.map((valueSet: string) => {
+      const values = valueSet.split(',').map((v: string) => v.trim())
+      const filteredValues = filtered.map((item: { idx: number }) => values[item.idx])
+      return `(${filteredValues.join(', ')})`
+    })
+
+    // Rebuild INSERT without DEFAULT columns
+    const newColumns = filtered.map((item: { col: string }) => item.col).join(', ')
+    return `insert into ${table} (${newColumns}) values ${newValueSets.join(', ')}`
+  })
+
+  // Step 2: Convert ? placeholders to :param1, :param2, etc.
+  processedSql = processedSql.replace(/\?/g, () => {
     if (paramIndex < params.length) {
-      const key = `p${paramIndex + 1}`
+      const key = `param${paramIndex + 1}`
       namedParams[key] = params[paramIndex]
       paramIndex++
       return `:${key}`
@@ -138,7 +181,7 @@ function convertMySQLPlaceholders(sql: string, params: any[] = []): { sql: strin
     return '?'
   })
 
-  return { sql: convertedSql, params: namedParams }
+  return { sql: processedSql, params: namedParams }
 }
 
 /**
@@ -151,10 +194,23 @@ function convertToMySQL2Result<R = any>(
 
   if (result.records && Array.isArray(result.records)) {
     // SELECT query - return rows and fields
+    // Note: The format (object vs array) is determined by hydrateColumnNames option
+    // passed to core.query(), not here
     const rows = result.records as R[]
-    const fields = rows.length > 0
-      ? Object.keys(rows[0] as any).map(name => ({ name }))
-      : []
+
+    // Generate field metadata
+    // For arrays: use indices; for objects: use keys
+    let fields: any[] = []
+    if (rows.length > 0) {
+      const firstRow = rows[0] as any
+      if (Array.isArray(firstRow)) {
+        // Array format - create field descriptors with indices
+        fields = firstRow.map((_: any, index: number) => ({ name: index.toString() }))
+      } else {
+        // Object format - use property names
+        fields = Object.keys(firstRow).map(name => ({ name }))
+      }
+    }
 
     return [rows, fields]
   } else if (result.insertId !== undefined) {
@@ -188,10 +244,10 @@ function convertToMySQL2Result<R = any>(
  */
 export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connection {
   // Force MySQL engine
+  // Note: hydrateColumnNames is controlled per-query based on rowsAsArray option
   const mysqlConfig: DataAPIClientConfig = {
     ...config,
-    engine: 'mysql',
-    hydrateColumnNames: true // Always return objects for mysql2 compatibility
+    engine: 'mysql'
   }
 
   const core: DataAPIClient = init(mysqlConfig)
@@ -200,27 +256,37 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
 
   // Helper to execute query logic
   async function executeQuery<R = any>(
-    sqlOrOptions: string | { sql: string; values?: any[] },
+    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean },
     params?: any[]
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
     let sql: string
     let values: any[] = []
+    let rowsAsArray = false
 
     if (typeof sqlOrOptions === 'string') {
       sql = sqlOrOptions
       values = params || []
     } else {
       sql = sqlOrOptions.sql
-      values = sqlOrOptions.values || []
+      // Handle both formats:
+      // 1. { sql, values } - standard format
+      // 2. query({ sql }, params) - Drizzle format
+      values = sqlOrOptions.values || params || []
+      rowsAsArray = sqlOrOptions.rowsAsArray || false
     }
 
-    // Convert ? placeholders to :p1, :p2
+    // Convert ? placeholders to :param1, :param2
     const { sql: convertedSql, params: namedParams } = convertMySQLPlaceholders(sql, values)
 
     // Execute query through core client
     const queryOptions: any = {
       sql: convertedSql,
-      parameters: namedParams
+      parameters: namedParams,
+      // Use hydrateColumnNames to control object vs array format
+      // When rowsAsArray is true, return arrays; otherwise return objects
+      hydrateColumnNames: !rowsAsArray,
+      // Always include metadata for proper type conversion (JSON parsing, etc.)
+      includeResultMetadata: true
     }
 
     // Add transaction ID if in transaction
@@ -271,9 +337,13 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
       let cb: ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void) | undefined
 
       if (typeof sqlOrOptions === 'object' && 'sql' in sqlOrOptions) {
-        // query({ sql, values }, callback?)
+        // query({ sql, values? }, params?, callback?)
+        // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback
+        } else if (Array.isArray(paramsOrCallback)) {
+          params = paramsOrCallback
+          cb = callback
         }
       } else {
         // query(sql, params?, callback?)
@@ -425,10 +495,10 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
  * connections internally.
  */
 export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
+  // Note: hydrateColumnNames is controlled per-query based on rowsAsArray option
   const mysqlConfig: DataAPIClientConfig = {
     ...config,
-    engine: 'mysql',
-    hydrateColumnNames: true
+    engine: 'mysql'
   }
 
   const core: DataAPIClient = init(mysqlConfig)
@@ -436,26 +506,36 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
 
   // Helper to execute query logic
   async function executePoolQuery<R = any>(
-    sqlOrOptions: string | { sql: string; values?: any[] },
+    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean },
     params?: any[]
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
     let sql: string
     let values: any[] = []
+    let rowsAsArray = false
 
     if (typeof sqlOrOptions === 'string') {
       sql = sqlOrOptions
       values = params || []
     } else {
       sql = sqlOrOptions.sql
-      values = sqlOrOptions.values || []
+      // Handle both formats:
+      // 1. { sql, values } - standard format
+      // 2. query({ sql }, params) - Drizzle format
+      values = sqlOrOptions.values || params || []
+      rowsAsArray = sqlOrOptions.rowsAsArray || false
     }
 
-    // Convert ? placeholders to :p1, :p2
+    // Convert ? placeholders to :param1, :param2
     const { sql: convertedSql, params: namedParams } = convertMySQLPlaceholders(sql, values)
 
     const result = await core.query<R>({
       sql: convertedSql,
-      parameters: namedParams
+      parameters: namedParams,
+      // Use hydrateColumnNames to control object vs array format
+      // When rowsAsArray is true, return arrays; otherwise return objects
+      hydrateColumnNames: !rowsAsArray,
+      // Always include metadata for proper type conversion (JSON parsing, etc.)
+      includeResultMetadata: true
     })
 
     // Convert to mysql2-compatible result
@@ -508,9 +588,13 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
       let cb: ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void) | undefined
 
       if (typeof sqlOrOptions === 'object' && 'sql' in sqlOrOptions) {
-        // query({ sql, values }, callback?)
+        // query({ sql, values? }, params?, callback?)
+        // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback
+        } else if (Array.isArray(paramsOrCallback)) {
+          params = paramsOrCallback
+          cb = callback
         }
       } else {
         // query(sql, params?, callback?)
