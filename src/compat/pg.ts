@@ -19,42 +19,107 @@ export interface PgQueryResult<R = any> {
   rowCount: number
   command: string
   fields: Array<{ name: string; dataTypeID?: number }>
+  oid?: number
+}
+
+export interface PgQueryConfig {
+  name?: string
+  text: string
+  values?: any[]
+  rowMode?: 'array' | 'object'
+  types?: any
 }
 
 export interface PgCompatClient extends EventEmitter {
-  connect(): Promise<PgCompatClient>
-  connect(callback: (err: Error | null, client?: PgCompatClient) => void): void
+  connect(): Promise<void>
+  connect(callback: (err: Error) => void): void
   end(): Promise<void>
   end(callback: (err?: Error) => void): void
-  query<R = any>(sql: string, params?: any[]): Promise<PgQueryResult<R>>
-  query<R = any>(sql: string, params: any[], callback: (err: Error | null, result: PgQueryResult<R>) => void): void
-  query<R = any>(sql: string, callback: (err: Error | null, result: PgQueryResult<R>) => void): void
-  query<R = any>(config: { text: string; values?: any[] }): Promise<PgQueryResult<R>>
+
+  // Query method overloads matching pg.ClientBase
+  query<T extends { submit: (connection: any) => void }>(queryStream: T): T
+  query<R extends any[] = any[]>(
+    queryConfig: { text: string; values?: any[]; rowMode: 'array' },
+    values?: any[]
+  ): Promise<{ rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }>
+  query<R = any>(queryConfig: { text: string; values?: any[] }): Promise<PgQueryResult<R>>
   query<R = any>(
-    config: { text: string; values?: any[] },
-    callback: (err: Error | null, result: PgQueryResult<R>) => void
+    queryTextOrConfig: string | { text: string; values?: any[] },
+    values?: any[]
+  ): Promise<PgQueryResult<R>>
+  query<R extends any[] = any[]>(
+    queryConfig: { text: string; values?: any[]; rowMode: 'array' },
+    callback: (err: Error, result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }) => void
   ): void
-  release?(): void
+  query<R = any>(
+    queryTextOrConfig: string | { text: string; values?: any[] },
+    callback: (err: Error, result: PgQueryResult<R>) => void
+  ): void
+  query<R = any>(
+    queryText: string,
+    values: any[],
+    callback: (err: Error, result: PgQueryResult<R>) => void
+  ): void
+
+  release(err?: Error | boolean): void
+
+  // pg ClientBase compatibility methods (not supported by Data API, but required for type compatibility)
+  copyFrom(queryText: string): any
+  copyTo(queryText: string): any
+  pauseDrain(): void
+  resumeDrain(): void
+  escapeIdentifier(str: string): string
+  escapeLiteral(str: string): string
+  setTypeParser(oid: number, format: string | ((text: string) => any), parseFn?: (text: string) => any): void
+  getTypeParser(oid: number, format?: string): (text: string) => any
 
   // Event emitter methods (inherited from EventEmitter)
+  on(event: 'drain', listener: () => void): this
   on(event: 'error', listener: (err: PostgresError) => void): this
   on(event: 'notice', listener: (notice: any) => void): this
   on(event: 'notification', listener: (message: any) => void): this
+  on(event: 'end', listener: () => void): this
   on(event: string, listener: (...args: any[]) => void): this
 }
 
 export interface PgCompatPool extends EventEmitter {
+  // Pool status properties (for pg.Pool compatibility)
+  readonly totalCount: number
+  readonly idleCount: number
+  readonly waitingCount: number
+  readonly expiredCount: number
+  readonly ending: boolean
+  readonly ended: boolean
+  options: any // Pool options (pg.Pool compatibility)
+
   connect(): Promise<PgCompatClient>
   connect(callback: (err: Error | null, client?: PgCompatClient) => void): void
   end(): Promise<void>
   end(callback: (err?: Error) => void): void
-  query<R = any>(sql: string, params?: any[]): Promise<PgQueryResult<R>>
-  query<R = any>(sql: string, params: any[], callback: (err: Error | null, result: PgQueryResult<R>) => void): void
-  query<R = any>(sql: string, callback: (err: Error | null, result: PgQueryResult<R>) => void): void
-  query<R = any>(config: { text: string; values?: any[] }): Promise<PgQueryResult<R>>
+
+  // Query method overloads matching pg.Pool
+  query<T extends { submit: (connection: any) => void }>(queryStream: T): T
+  query<R extends any[] = any[]>(
+    queryConfig: { text: string; values?: any[]; rowMode: 'array' },
+    values?: any[]
+  ): Promise<{ rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }>
+  query<R = any>(queryConfig: { text: string; values?: any[] }): Promise<PgQueryResult<R>>
   query<R = any>(
-    config: { text: string; values?: any[] },
-    callback: (err: Error | null, result: PgQueryResult<R>) => void
+    queryTextOrConfig: string | { text: string; values?: any[] },
+    values?: any[]
+  ): Promise<PgQueryResult<R>>
+  query<R extends any[] = any[]>(
+    queryConfig: { text: string; values?: any[]; rowMode: 'array' },
+    callback: (err: Error, result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }) => void
+  ): void
+  query<R = any>(
+    queryTextOrConfig: string | { text: string; values?: any[] },
+    callback: (err: Error, result: PgQueryResult<R>) => void
+  ): void
+  query<R = any>(
+    queryText: string,
+    values: any[],
+    callback: (err: Error, result: PgQueryResult<R>) => void
   ): void
 
   // Event emitter methods
@@ -94,20 +159,31 @@ function inferCommand(sql: string): string {
 /**
  * Convert Data API result to pg-compatible result
  */
-function convertToPgResult<R = any>(result: DataAPIQueryResult<R>, sql: string): PgQueryResult<R> {
+function convertToPgResult<R = any>(
+  result: DataAPIQueryResult<R>,
+  sql: string,
+  rowMode?: 'array' | 'object'
+): PgQueryResult<R> {
   // Handle different result types
   if (result.records && Array.isArray(result.records)) {
     // SELECT query with records
-    const rows = result.records as R[]
-    const fields = rows.length > 0
-      ? Object.keys(rows[0] as any).map(name => ({ name }))
-      : []
+    let rows = result.records as R[]
+    const fields =
+      rows.length > 0 && typeof rows[0] === 'object' && rows[0] !== null
+        ? Object.keys(rows[0] as any).map((name) => ({ name }))
+        : []
+
+    // Convert to array format if rowMode is 'array'
+    if (rowMode === 'array' && rows.length > 0 && typeof rows[0] === 'object') {
+      rows = rows.map((row) => Object.values(row as any)) as R[]
+    }
 
     return {
       rows,
       rowCount: rows.length,
       command: inferCommand(sql),
-      fields
+      fields,
+      oid: 0
     }
   } else if (result.numberOfRecordsUpdated !== undefined) {
     // UPDATE/DELETE query
@@ -115,7 +191,8 @@ function convertToPgResult<R = any>(result: DataAPIQueryResult<R>, sql: string):
       rows: [] as R[],
       rowCount: result.numberOfRecordsUpdated,
       command: inferCommand(sql),
-      fields: []
+      fields: [],
+      oid: 0
     }
   } else if (result.insertId !== undefined) {
     // INSERT query (MySQL-style insertId)
@@ -123,7 +200,8 @@ function convertToPgResult<R = any>(result: DataAPIQueryResult<R>, sql: string):
       rows: [] as R[],
       rowCount: 1,
       command: 'INSERT',
-      fields: []
+      fields: [],
+      oid: 0
     }
   } else {
     // Other queries or empty results
@@ -131,7 +209,8 @@ function convertToPgResult<R = any>(result: DataAPIQueryResult<R>, sql: string):
       rows: [] as R[],
       rowCount: 0,
       command: inferCommand(sql),
-      fields: []
+      fields: [],
+      oid: 0
     }
   }
 }
@@ -153,19 +232,28 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
 
   // Helper to execute query logic
   async function executeQuery<R = any>(
-    sqlOrConfig: string | { text: string; values?: any[] },
+    sqlOrConfig: string | PgQueryConfig,
     params?: any[]
   ): Promise<PgQueryResult<R>> {
     // Handle both query(sql, params) and query({ text, values }) formats
     let sql: string
     let values: any[] = []
+    let rowMode: 'array' | 'object' | undefined
 
     if (typeof sqlOrConfig === 'string') {
       sql = sqlOrConfig
       values = params || []
     } else {
       sql = sqlOrConfig.text
-      values = sqlOrConfig.values || []
+      // If params are passed as second argument, they override config.values
+      // This is how Drizzle calls it: query({name, text}, values)
+      values = params !== undefined ? params : (sqlOrConfig.values || [])
+      rowMode = sqlOrConfig.rowMode
+      // IMPORTANT: We intentionally ignore sqlOrConfig.name
+      // The RDS Data API interprets the 'name' field as a request for server-side
+      // prepared statements, which causes "bind message" errors. Instead, we execute
+      // each query directly without prepared statement caching.
+      // Similarly, sqlOrConfig.types is ignored as the Data API handles type parsing.
     }
 
     // Check for transaction control commands
@@ -228,17 +316,17 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
     const result = await core.query<R>(queryOptions)
 
     // Convert to pg-compatible result
-    return convertToPgResult(result, sql)
+    return convertToPgResult(result, sql, rowMode)
   }
 
   const client = Object.assign(eventEmitter, {
-    connect(callback?: (err: Error | null, client?: PgCompatClient) => void): any {
+    connect(callback?: (err: Error) => void): any {
       // No-op for Data API (no connection needed)
       if (callback) {
-        process.nextTick(() => callback(null, client))
+        process.nextTick(() => callback(null as any))
         return
       }
-      return Promise.resolve(client)
+      return Promise.resolve()
     },
 
     end(callback?: (err?: Error) => void): any {
@@ -250,19 +338,72 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
       return Promise.resolve()
     },
 
+    // pg ClientBase compatibility methods (not supported by Data API)
+    copyFrom(_queryText: string): any {
+      throw new Error('COPY FROM is not supported by RDS Data API')
+    },
+
+    copyTo(_queryText: string): any {
+      throw new Error('COPY TO is not supported by RDS Data API')
+    },
+
+    pauseDrain(): void {
+      // No-op for Data API
+    },
+
+    resumeDrain(): void {
+      // No-op for Data API
+    },
+
+    escapeIdentifier(str: string): string {
+      // Use pg-escape for PostgreSQL identifier escaping
+      const pgEscape = require('pg-escape')
+      return pgEscape.ident(str)
+    },
+
+    escapeLiteral(str: string): string {
+      // Use pg-escape for PostgreSQL literal escaping
+      const pgEscape = require('pg-escape')
+      return pgEscape.literal(str)
+    },
+
+    setTypeParser(_oid: number, _format: string | ((text: string) => any), _parseFn?: (text: string) => any): void {
+      // Type parsing is handled by the Data API
+      // This is a no-op for compatibility
+    },
+
+    getTypeParser(_oid: number, _format?: string): (text: string) => any {
+      // Return identity function as Data API handles type parsing
+      return (text: string) => text
+    },
+
+    release(_err?: Error | boolean): void {
+      // No-op for standalone clients (only pool clients need to be released)
+      // This is overridden when the client is obtained from a pool
+    },
+
     query<R = any>(
-      sqlOrConfig: string | { text: string; values?: any[] },
+      sqlOrConfig: string | PgQueryConfig | { submit: (connection: any) => void },
       paramsOrCallback?: any[] | ((err: Error | null, result: PgQueryResult<R>) => void),
       callback?: (err: Error | null, result: PgQueryResult<R>) => void
     ): any {
+      // Handle query streams (Submittable)
+      if (typeof sqlOrConfig === 'object' && 'submit' in sqlOrConfig) {
+        throw new Error('Query streams are not supported by RDS Data API')
+      }
+
       // Determine if callback style or promise style
       let params: any[] = []
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
-        // query({ text, values }, callback?)
+        // query({ text, values }, callback?) or query({ text, values }, values, callback?)
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback
+        } else if (Array.isArray(paramsOrCallback)) {
+          // Override values from config with explicit values parameter
+          params = paramsOrCallback
+          cb = callback
         }
       } else {
         // query(sql, params?, callback?)
@@ -317,18 +458,27 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
 
   // Helper to execute query logic
   async function executePoolQuery<R = any>(
-    sqlOrConfig: string | { text: string; values?: any[] },
+    sqlOrConfig: string | PgQueryConfig,
     params?: any[]
   ): Promise<PgQueryResult<R>> {
     let sql: string
     let values: any[] = []
+    let rowMode: 'array' | 'object' | undefined
 
     if (typeof sqlOrConfig === 'string') {
       sql = sqlOrConfig
       values = params || []
     } else {
       sql = sqlOrConfig.text
-      values = sqlOrConfig.values || []
+      // If params are passed as second argument, they override config.values
+      // This is how Drizzle calls it: query({name, text}, values)
+      values = params !== undefined ? params : (sqlOrConfig.values || [])
+      rowMode = sqlOrConfig.rowMode
+      // IMPORTANT: We intentionally ignore sqlOrConfig.name
+      // The RDS Data API interprets the 'name' field as a request for server-side
+      // prepared statements, which causes "bind message" errors. Instead, we execute
+      // each query directly without prepared statement caching.
+      // Similarly, sqlOrConfig.types is ignored as the Data API handles type parsing.
     }
 
     // Convert $1, $2 placeholders to :p1, :p2
@@ -340,10 +490,32 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
     })
 
     // Convert to pg-compatible result
-    return convertToPgResult(result, sql)
+    return convertToPgResult(result, sql, rowMode)
   }
 
   const pool = Object.assign(eventEmitter, {
+    // Pool status properties (Data API doesn't have a real pool, so these are constants)
+    get totalCount() {
+      return 0
+    },
+    get idleCount() {
+      return 0
+    },
+    get waitingCount() {
+      return 0
+    },
+    get expiredCount() {
+      return 0
+    },
+    get ending() {
+      return false
+    },
+    get ended() {
+      return false
+    },
+    // Pool options (empty object for Data API compatibility)
+    options: {},
+
     connect(callback?: (err: Error | null, client?: PgCompatClient) => void): any {
       const getClient = () => {
         // Return a client-like object with release method
@@ -380,18 +552,27 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
     },
 
     query<R = any>(
-      sqlOrConfig: string | { text: string; values?: any[] },
+      sqlOrConfig: string | PgQueryConfig | { submit: (connection: any) => void },
       paramsOrCallback?: any[] | ((err: Error | null, result: PgQueryResult<R>) => void),
       callback?: (err: Error | null, result: PgQueryResult<R>) => void
     ): any {
+      // Handle query streams (Submittable)
+      if (typeof sqlOrConfig === 'object' && 'submit' in sqlOrConfig) {
+        throw new Error('Query streams are not supported by RDS Data API')
+      }
+
       // Determine if callback style or promise style
       let params: any[] = []
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
-        // query({ text, values }, callback?)
+        // query({ text, values }, callback?) or query({ text, values }, values, callback?)
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback
+        } else if (Array.isArray(paramsOrCallback)) {
+          // Override values from config with explicit values parameter
+          params = paramsOrCallback
+          cb = callback
         }
       } else {
         // query(sql, params?, callback?)
