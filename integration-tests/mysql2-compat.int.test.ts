@@ -187,15 +187,31 @@ describe('MySQL2 Compatibility - Pool', () => {
   })
 
   test('should get connection from pool', async () => {
-    const conn = await pool.getConnection()
-    expect(conn).toHaveProperty('query')
-    expect(conn).toHaveProperty('release')
+    await new Promise<void>((resolve, reject) => {
+      pool.getConnection((err, conn) => {
+        if (err) return reject(err)
 
-    const [rows, _fields] = await conn.query('SELECT ? as message', ['Hello from pool'])
-    expect((rows as any[])[0].message).toBe('Hello from pool')
+        try {
+          expect(conn).toHaveProperty('query')
+          expect(conn).toHaveProperty('release')
 
-    // Release connection (no-op for Data API)
-    conn.release?.()
+          conn.query('SELECT ? as message', ['Hello from pool'], async (queryErr, results, _fields) => {
+            try {
+              if (queryErr) return reject(queryErr)
+              expect((results as any[])[0].message).toBe('Hello from pool')
+
+              // Release connection (no-op for Data API)
+              conn.release?.()
+              resolve()
+            } catch (e) {
+              reject(e)
+            }
+          })
+        } catch (e) {
+          reject(e)
+        }
+      })
+    })
   })
 
   test('should support { sql, values } format in pool', async () => {
@@ -495,12 +511,18 @@ describe('MySQL2 Compatibility - Event Emitters', () => {
     pool.on('acquire', () => events.push('acquire'))
     pool.on('release', () => events.push('release'))
 
-    const conn = await pool.getConnection()
-    conn.release?.()
+    await new Promise<void>((resolve, reject) => {
+      pool.getConnection((err, conn) => {
+        if (err) return reject(err)
+        conn.release?.()
 
-    expect(events).toContain('connection')
-    expect(events).toContain('acquire')
-    expect(events).toContain('release')
+        expect(events).toContain('connection')
+        expect(events).toContain('acquire')
+        expect(events).toContain('release')
+
+        resolve()
+      })
+    })
 
     await pool.end()
   })
