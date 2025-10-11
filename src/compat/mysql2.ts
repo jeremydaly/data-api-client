@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events'
+import SqlString from 'sqlstring'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
 import { mapToMySQLError, type MySQLError } from './errors'
@@ -122,66 +123,13 @@ export interface MySQL2Pool extends EventEmitter {
 }
 
 /**
- * Convert MySQL ? placeholders to named parameters :param1, :param2, ...
- * Handles DEFAULT keywords by removing those columns from INSERT statements.
+ * Format MySQL query with parameters using SqlString.format()
+ * This handles ? placeholders and escapes values properly.
+ * Returns the fully formatted SQL string ready for Data API.
  */
-function convertMySQLPlaceholders(sql: string, params: any[] = []): { sql: string; params: Record<string, any> } {
-  const namedParams: Record<string, any> = {}
-  let processedSql = sql
-  let paramIndex = 0
-
-  // Step 1: Handle INSERT statements with DEFAULT keywords
-  // Match: INSERT INTO table (col1, col2, ...) VALUES ...
-  const insertRegex = /insert\s+into\s+([`\w]+)\s*\(([^)]+)\)\s*values\s*(.+)/gi
-
-  processedSql = processedSql.replace(insertRegex, (match, table, columnsPart, allValuesPart) => {
-    const columns = columnsPart.split(',').map((c: string) => c.trim())
-
-    // Extract all value sets: (val1, val2), (val3, val4), ...
-    const valueSetsRegex = /\(([^)]+)\)/g
-    const valueSets: string[] = []
-    let valueSetMatch
-    while ((valueSetMatch = valueSetsRegex.exec(allValuesPart)) !== null) {
-      valueSets.push(valueSetMatch[1])
-    }
-
-    if (valueSets.length === 0) return match
-
-    // Check first value set to see which columns have DEFAULT
-    const firstValues = valueSets[0].split(',').map((v: string) => v.trim())
-    const filtered = columns
-      .map((col: string, i: number) => ({ col, idx: i, hasDefault: firstValues[i]?.toLowerCase() === 'default' }))
-      .filter((item: { col: string; idx: number; hasDefault: boolean }) => !item.hasDefault)
-
-    if (filtered.length === columns.length) {
-      // No DEFAULTs found, return as-is
-      return match
-    }
-
-    // Rebuild all value sets without DEFAULT positions
-    const newValueSets = valueSets.map((valueSet: string) => {
-      const values = valueSet.split(',').map((v: string) => v.trim())
-      const filteredValues = filtered.map((item: { idx: number }) => values[item.idx])
-      return `(${filteredValues.join(', ')})`
-    })
-
-    // Rebuild INSERT without DEFAULT columns
-    const newColumns = filtered.map((item: { col: string }) => item.col).join(', ')
-    return `insert into ${table} (${newColumns}) values ${newValueSets.join(', ')}`
-  })
-
-  // Step 2: Convert ? placeholders to :param1, :param2, etc.
-  processedSql = processedSql.replace(/\?/g, () => {
-    if (paramIndex < params.length) {
-      const key = `param${paramIndex + 1}`
-      namedParams[key] = params[paramIndex]
-      paramIndex++
-      return `:${key}`
-    }
-    return '?'
-  })
-
-  return { sql: processedSql, params: namedParams }
+function formatMySQLQuery(sql: string, params: any[] = []): string {
+  // Use SqlString.format to replace ? placeholders with escaped values
+  return SqlString.format(sql, params)
 }
 
 /**
@@ -275,13 +223,13 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
       rowsAsArray = sqlOrOptions.rowsAsArray || false
     }
 
-    // Convert ? placeholders to :param1, :param2
-    const { sql: convertedSql, params: namedParams } = convertMySQLPlaceholders(sql, values)
+    // Format MySQL query by replacing ? placeholders with escaped values
+    const formattedSql = formatMySQLQuery(sql, values)
 
     // Execute query through core client
     const queryOptions: any = {
-      sql: convertedSql,
-      parameters: namedParams,
+      sql: formattedSql,
+      // No parameters needed as formatMySQLQuery inlines values
       // Use hydrateColumnNames to control object vs array format
       // When rowsAsArray is true, return arrays; otherwise return objects
       hydrateColumnNames: !rowsAsArray,
@@ -525,12 +473,12 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
       rowsAsArray = sqlOrOptions.rowsAsArray || false
     }
 
-    // Convert ? placeholders to :param1, :param2
-    const { sql: convertedSql, params: namedParams } = convertMySQLPlaceholders(sql, values)
+    // Format MySQL query by replacing ? placeholders with escaped values
+    const formattedSql = formatMySQLQuery(sql, values)
 
     const result = await core.query<R>({
-      sql: convertedSql,
-      parameters: namedParams,
+      sql: formattedSql,
+      // No parameters needed as formatMySQLQuery inlines values
       // Use hydrateColumnNames to control object vs array format
       // When rowsAsArray is true, return arrays; otherwise return objects
       hydrateColumnNames: !rowsAsArray,
