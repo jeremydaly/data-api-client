@@ -3,15 +3,33 @@
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 [![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 
-> **Note:** Version 2.0.0 is currently in active development. We welcome your feedback and bug reports! Please [open an issue](https://github.com/jeremydaly/data-api-client/issues) if you encounter any problems or have suggestions for improvement.
+> **Note:** Version 2.1.0 introduces mysql2 and pg compatibility layers with full ORM support! We welcome your feedback and bug reports. Please [open an issue](https://github.com/jeremydaly/data-api-client/issues) if you encounter any problems or have suggestions for improvement.
 >
 > **Using v1.x?** See [README_v1.md](README_v1.md) for v1.x documentation.
 
-The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API. It also dramatically simplifies **transactions** and uses modern async/await patterns with AWS SDK v3.
+The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API. It also dramatically simplifies **transactions**, provides **automatic retry logic** for scale-to-zero clusters, and includes **compatibility layers** for mysql2 and pg with full **ORM support**.
 
-**Version 2.0** introduces support for the new [RDS Data API for Aurora Serverless v2 and Aurora provisioned database instances](https://aws.amazon.com/about-aws/whats-new/2024/09/amazon-aurora-mysql-rds-data-api/), enhanced [Amazon Aurora PostgreSQL-Compatible Edition](https://aws.amazon.com/about-aws/whats-new/2023/12/amazon-aurora-postgresql-rds-data-api/) support, migration to AWS SDK v3, full TypeScript implementation, and comprehensive PostgreSQL data type coverage including **automatic array handling**.
+**Version 2.1** adds mysql2 and pg compatibility layers, automatic retry logic for cluster wake-ups, and verified support for Drizzle ORM and Kysely query builder.
+
+**Version 2.0** introduced support for the new [RDS Data API for Aurora Serverless v2 and Aurora provisioned database instances](https://aws.amazon.com/about-aws/whats-new/2024/09/amazon-aurora-mysql-rds-data-api/), enhanced [Amazon Aurora PostgreSQL-Compatible Edition](https://aws.amazon.com/about-aws/whats-new/2023/12/amazon-aurora-postgresql-rds-data-api/) support, migration to AWS SDK v3, full TypeScript implementation, and comprehensive PostgreSQL data type coverage including **automatic array handling**.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
+
+## What's New in v2.1
+
+- **Automatic Retry Logic**: Built-in retry handling for Aurora Serverless scale-to-zero wake-ups
+  - Smart detection of `DatabaseResumingException` with optimized retry delays
+  - Automatic handling of connection errors with exponential backoff
+  - Configurable and enabled by default
+- **mysql2 Compatibility Layer**: Drop-in replacement for the `mysql2/promise` library
+  - Full support for connection pools and transactions
+  - Works seamlessly with ORMs like Drizzle and Kysely
+- **pg Compatibility Layer**: Drop-in replacement for the `pg` (node-postgres) library
+  - Promise-based and callback-based APIs
+  - Compatible with ORMs and query builders
+- **ORM Support**: Tested and verified with popular ORMs:
+  - **Drizzle ORM**: Full support for both MySQL and PostgreSQL
+  - **Kysely**: Query builder support for both engines
 
 ## What's New in v2.0
 
@@ -188,6 +206,46 @@ Below is a table containing all of the possible configuration options for the `d
 | hydrateColumnNames | `boolean`       | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values.                                                                                                             | `true`                                           |
 | options            | `object`        | An _optional_ configuration object that is passed directly into the RDSDataClient constructor. See [AWS SDK docs](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-rds-data/classes/rdsdataclient.html) for available options. | `{}`                                             |
 | formatOptions      | `object`        | Formatting options to auto parse dates and coerce native JavaScript date objects to supported date formats. Valid keys are `deserializeDate` and `treatAsLocalDate`. Both accept boolean values.                                                    | `deserializeDate: true, treatAsLocalDate: false` |
+| retryOptions       | `object`        | Configuration for automatic retry logic. Valid keys are `enabled` (boolean), `maxRetries` (number), and `retryableErrors` (string array).                                                                                                            | `enabled: true, maxRetries: 9`                   |
+
+### Automatic Retry Logic
+
+Version 2.1 includes built-in retry logic to handle Aurora Serverless scale-to-zero cluster wake-ups automatically. When your cluster is paused and needs to resume, the client will automatically retry your queries with optimized delays.
+
+**Features:**
+- **Smart Error Detection**: Automatically detects `DatabaseResumingException` and connection errors
+- **Strategy-Based Retries**: Different retry strategies based on error type:
+  - DatabaseResumingException: Up to 10 attempts with progressive delays (0s, 2s, 5s, 10s, 15s, 20s, 25s, 30s, 35s, 40s)
+  - Connection errors: 3 quick retries with exponential backoff (0s, 2s, 4s)
+- **Enabled by Default**: Works automatically without any configuration
+- **Configurable**: Customize retry behavior per your needs
+
+**Configuration:**
+
+```javascript
+const data = dataApiClient({
+  secretArn: 'arn:...',
+  resourceArn: 'arn:...',
+  database: 'myDatabase',
+  retryOptions: {
+    enabled: true, // Enable/disable retries (default: true)
+    maxRetries: 9, // Maximum retry attempts (default: 9 for up to 40s total)
+    retryableErrors: [] // Additional error patterns to retry (optional)
+  }
+})
+```
+
+**Disable retries** (not recommended for scale-to-zero clusters):
+
+```javascript
+const data = dataApiClient({
+  secretArn: 'arn:...',
+  resourceArn: 'arn:...',
+  retryOptions: { enabled: false }
+})
+```
+
+The retry logic works seamlessly across all operations: queries, transactions, batch operations, and compatibility layer methods.
 
 ### Connection Reuse
 
@@ -454,6 +512,185 @@ const data = dataApiClient({
   resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name'
 })
 ```
+
+## mysql2 and pg Compatibility Layers
+
+Version 2.1 introduces compatibility layers that allow you to use the Data API Client as a drop-in replacement for popular database libraries. This makes it easy to migrate existing applications or use ORMs without modification.
+
+### mysql2 Compatibility
+
+Use the Data API Client as a replacement for `mysql2/promise`:
+
+```javascript
+import { createMySQLConnection, createMySQLPool } from 'data-api-client/compat/mysql2'
+
+// Create a connection
+const connection = createMySQLConnection({
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster',
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  database: 'myDatabase'
+})
+
+// Use like mysql2/promise
+const [rows, fields] = await connection.query('SELECT * FROM users WHERE id = ?', [123])
+await connection.execute('INSERT INTO users (name, email) VALUES (?, ?)', ['Alice', 'alice@example.com'])
+
+// Note: connection.end() is optional - it's a no-op for Data API (no connection to close)
+
+// Create a pool for connection pooling
+const pool = createMySQLPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+// Get connection from pool
+pool.getConnection((err, connection) => {
+  if (err) throw err
+  connection.query('SELECT * FROM users', (err, results) => {
+    connection.release() // Optional - no-op for Data API
+    // Handle results
+  })
+})
+
+// Or use promises
+const connection = await pool.getConnection()
+const [rows] = await connection.query('SELECT * FROM users')
+connection.release() // Optional - no-op for Data API
+```
+
+### pg Compatibility
+
+Use the Data API Client as a replacement for `pg` (node-postgres):
+
+```javascript
+import { createPgClient, createPgPool } from 'data-api-client/compat/pg'
+
+// Create a client
+const client = createPgClient({
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster',
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  database: 'myDatabase'
+})
+
+// Note: client.connect() is optional - it's a no-op for Data API (no connection needed)
+await client.connect() // Optional
+
+// Use like pg
+const result = await client.query('SELECT * FROM users WHERE id = $1', [123])
+console.log(result.rows)
+
+// With callback style
+client.query('SELECT * FROM users', (err, result) => {
+  console.log(result.rows)
+})
+
+// Note: client.end() is optional - it's a no-op for Data API (no connection to close)
+await client.end() // Optional
+
+// Create a pool
+const pool = createPgPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+const result = await pool.query('SELECT * FROM users WHERE id = $1', [123])
+```
+
+### Using with ORMs
+
+The compatibility layers work seamlessly with popular ORMs:
+
+#### Drizzle ORM
+
+**MySQL with Drizzle:**
+
+```typescript
+import { drizzle } from 'drizzle-orm/mysql2'
+import { createMySQLPool } from 'data-api-client/compat/mysql2'
+
+const pool = createMySQLPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+const db = drizzle(pool as any)
+
+// Use Drizzle normally
+const users = await db.select().from(usersTable).where(eq(usersTable.id, 123))
+```
+
+**PostgreSQL with Drizzle:**
+
+```typescript
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { createPgClient } from 'data-api-client/compat/pg'
+
+const client = createPgClient({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+// Note: client.connect() is optional (no-op for Data API)
+await client.connect() // Optional - can be omitted
+const db = drizzle(client as any)
+
+// Use Drizzle normally
+const users = await db.select().from(usersTable).where(eq(usersTable.id, 123))
+```
+
+#### Kysely Query Builder
+
+**MySQL with Kysely:**
+
+```typescript
+import { Kysely, MysqlDialect } from 'kysely'
+import { createMySQLPool } from 'data-api-client/compat/mysql2'
+
+const pool = createMySQLPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+const db = new Kysely<Database>({
+  dialect: new MysqlDialect({ pool: pool as any })
+})
+
+// Use Kysely normally
+const users = await db.selectFrom('users').selectAll().where('id', '=', 123).execute()
+```
+
+**PostgreSQL with Kysely:**
+
+```typescript
+import { Kysely, PostgresDialect } from 'kysely'
+import { createPgPool } from 'data-api-client/compat/pg'
+
+const pool = createPgPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+})
+
+const db = new Kysely<Database>({
+  dialect: new PostgresDialect({ pool: pool as any })
+})
+
+// Use Kysely normally
+const users = await db.selectFrom('users').selectAll().where('id', '=', 123).execute()
+```
+
+**Benefits of Compatibility Layers:**
+- **Zero code changes** when migrating from mysql2 or pg
+- **Full ORM support** (Drizzle, Kysely)
+- **Automatic retry logic** for cluster wake-ups
+- **Connection pooling simulation** (getConnection, release)
+- **Both Promise and callback APIs** supported
+- **No-op connection management**: `connect()`, `end()`, and `release()` are optional since the Data API is connectionless - they're included only for backward compatibility with existing code
 
 ## PostgreSQL Array Support
 
