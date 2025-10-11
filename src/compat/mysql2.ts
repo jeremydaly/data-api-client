@@ -12,7 +12,101 @@ import { EventEmitter } from 'events'
 import SqlString from 'sqlstring'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
-import { mapToMySQLError, type MySQLError } from './errors'
+import { mapToMySQLError } from './errors'
+
+// Define our own compatible types instead of using mysql2's types
+// This allows us to properly type the Promise-based interface
+
+// Connection returned from pool has a release method
+export interface PoolConnection extends Connection {
+  release?: () => void
+}
+
+export interface Connection extends EventEmitter {
+  connect(callback?: (err: Error | null) => void): Promise<void>
+  end(callback?: (err?: Error) => void): Promise<void>
+  // Query overloads - always return Promise for compatibility with mysql2
+  query<R = any>(sql: string): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    sql: string,
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    sql: string,
+    params: any[],
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    options: { sql: string; values?: any[] },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  // Execute overloads
+  execute<R = any>(sql: string): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    sql: string,
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    sql: string,
+    params: any[],
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    options: { sql: string; values?: any[] },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  beginTransaction(callback?: (err: Error | null) => void): Promise<void>
+  commit(callback?: (err?: Error) => void): Promise<void>
+  rollback(callback?: (err?: Error) => void): Promise<void>
+  ping(callback?: (err?: Error) => void): Promise<void>
+}
+
+export interface Pool extends EventEmitter {
+  getConnection(callback: (err: Error | null, connection: PoolConnection) => any): void
+  end(callback?: (err?: Error) => void): Promise<void>
+  // Query overloads
+  query<R = any>(sql: string): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    sql: string,
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    sql: string,
+    params: any[],
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    options: { sql: string; values?: any[] },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  // Execute overloads
+  execute<R = any>(sql: string): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    sql: string,
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    sql: string,
+    params: any[],
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    options: { sql: string; values?: any[] },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  releaseConnection(connection: PoolConnection): void
+  promise(): Pool
+  unprepare(sql: string): any
+  config: DataAPIClientConfig
+}
 
 // MySQL2-compatible types
 export interface MySQL2QueryResult<R = any> {
@@ -32,96 +126,6 @@ export interface MySQL2QueryResult<R = any> {
   warningCount?: number
 }
 
-export interface MySQL2Connection extends EventEmitter {
-  connect(): Promise<void>
-  connect(callback: (err: Error | null) => void): void
-  end(): Promise<void>
-  end(callback: (err?: Error) => void): void
-  query<R = any>(sql: string, params?: any[]): Promise<[R[] | MySQL2QueryResult, any]>
-  query<R = any>(
-    sql: string,
-    params: any[],
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  query<R = any>(sql: string, callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void): void
-  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult, any]>
-  query<R = any>(
-    options: { sql: string; values?: any[] },
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(sql: string, params?: any[]): Promise<[R[] | MySQL2QueryResult, any]>
-  execute<R = any>(
-    sql: string,
-    params: any[],
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(
-    sql: string,
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult, any]>
-  execute<R = any>(
-    options: { sql: string; values?: any[] },
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  beginTransaction(): Promise<void>
-  beginTransaction(callback: (err: Error | null) => void): void
-  commit(): Promise<void>
-  commit(callback: (err?: Error) => void): void
-  rollback(): Promise<void>
-  rollback(callback: (err?: Error) => void): void
-  ping(): Promise<void>
-  ping(callback: (err?: Error) => void): void
-  release?(): void
-
-  // Event emitter methods
-  on(event: 'error', listener: (err: MySQLError) => void): this
-  on(event: 'connect', listener: () => void): this
-  on(event: 'end', listener: () => void): this
-  on(event: string, listener: (...args: any[]) => void): this
-}
-
-export interface MySQL2Pool extends EventEmitter {
-  getConnection(): Promise<MySQL2Connection>
-  getConnection(callback: (err: Error | null, connection?: MySQL2Connection) => void): void
-  end(): Promise<void>
-  end(callback: (err?: Error) => void): void
-  query<R = any>(sql: string, params?: any[]): Promise<[R[] | MySQL2QueryResult, any]>
-  query<R = any>(
-    sql: string,
-    params: any[],
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  query<R = any>(sql: string, callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void): void
-  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult, any]>
-  query<R = any>(
-    options: { sql: string; values?: any[] },
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(sql: string, params?: any[]): Promise<[R[] | MySQL2QueryResult, any]>
-  execute<R = any>(
-    sql: string,
-    params: any[],
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(
-    sql: string,
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult, any]>
-  execute<R = any>(
-    options: { sql: string; values?: any[] },
-    callback: (err: Error | null, results: R[] | MySQL2QueryResult, fields: any) => void
-  ): void
-
-  // Event emitter methods
-  on(event: 'error', listener: (err: MySQLError) => void): this
-  on(event: 'connection', listener: (connection: MySQL2Connection) => void): this
-  on(event: 'acquire', listener: (connection: MySQL2Connection) => void): this
-  on(event: 'release', listener: (connection: MySQL2Connection) => void): this
-  on(event: string, listener: (...args: any[]) => void): this
-}
-
 /**
  * Format MySQL query with parameters using SqlString.format()
  * This handles ? placeholders and escapes values properly.
@@ -139,7 +143,6 @@ function convertToMySQL2Result<R = any>(
   result: DataAPIQueryResult<R>,
   _sql: string
 ): [R[] | MySQL2QueryResult<R>, any] {
-
   if (result.records && Array.isArray(result.records)) {
     // SELECT query - return rows and fields
     // Note: The format (object vs array) is determined by hydrateColumnNames option
@@ -156,7 +159,7 @@ function convertToMySQL2Result<R = any>(
         fields = firstRow.map((_: any, index: number) => ({ name: index.toString() }))
       } else {
         // Object format - use property names
-        fields = Object.keys(firstRow).map(name => ({ name }))
+        fields = Object.keys(firstRow).map((name) => ({ name }))
       }
     }
 
@@ -190,7 +193,7 @@ function convertToMySQL2Result<R = any>(
 /**
  * Create a mysql2-compatible connection
  */
-export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connection {
+export function createMySQLConnection(config: DataAPIClientConfig): Connection {
   // Force MySQL engine
   // Note: hydrateColumnNames is controlled per-query based on rowsAsArray option
   const mysqlConfig: DataAPIClientConfig = {
@@ -305,14 +308,15 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
 
       // Callback style
       if (cb) {
-        executeQuery<R>(sqlOrOptions, params)
-          .then(([results, fields]) => cb(null, results, fields))
+        return executeQuery<R>(sqlOrOptions, params)
+          .then(([results, fields]) => {
+            cb(null, results, fields)
+          })
           .catch((err) => {
             const mysqlError = mapToMySQLError(err)
             connection.emit('error', mysqlError)
             cb(mysqlError, null as any, null)
           })
-        return
       }
 
       // Promise style
@@ -329,7 +333,7 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
       callback?: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
     ): any {
       // execute() is the same as query() for Data API (no prepared statements)
-      return connection.query(sqlOrOptions as any, paramsOrCallback as any, callback as any)
+      return connection.query<R>(sqlOrOptions as any, paramsOrCallback as any, callback as any)
     },
 
     beginTransaction(callback?: (err: Error | null) => void): any {
@@ -430,9 +434,9 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
         throw mysqlError
       })
     }
-  }) as MySQL2Connection
+  })
 
-  return connection
+  return connection as Connection
 }
 
 /**
@@ -442,7 +446,7 @@ export function createMySQLConnection(config: DataAPIClientConfig): MySQL2Connec
  * but doesn't actually implement connection pooling since the Data API handles
  * connections internally.
  */
-export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
+export function createMySQLPool(config: DataAPIClientConfig): Pool {
   // Note: hydrateColumnNames is controlled per-query based on rowsAsArray option
   const mysqlConfig: DataAPIClientConfig = {
     ...config,
@@ -491,11 +495,11 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
   }
 
   const pool = Object.assign(eventEmitter, {
-    getConnection(callback?: (err: Error | null, connection?: MySQL2Connection) => void): any {
-      const getConn = () => {
+    getConnection(callback: (err: Error | null, connection: PoolConnection) => any): void {
+      const getConn = (): PoolConnection => {
         // Return a connection-like object with release method
-        const connection = createMySQLConnection(config)
-        ;(connection as any).release = () => {
+        const connection = createMySQLConnection(config) as PoolConnection
+        connection.release = () => {
           // No-op for Data API
           pool.emit('release', connection)
         }
@@ -504,17 +508,12 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
         return connection
       }
 
-      if (callback) {
-        try {
-          const connection = getConn()
-          process.nextTick(() => callback(null, connection))
-        } catch (err) {
-          process.nextTick(() => callback(err as Error))
-        }
-        return
+      try {
+        const connection = getConn()
+        process.nextTick(() => callback(null, connection))
+      } catch (err) {
+        process.nextTick(() => callback(err as Error, null as any))
       }
-
-      return Promise.resolve(getConn())
     },
 
     end(callback?: (err?: Error) => void): any {
@@ -556,14 +555,15 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
 
       // Callback style
       if (cb) {
-        executePoolQuery<R>(sqlOrOptions, params)
-          .then(([results, fields]) => cb(null, results, fields))
+        return executePoolQuery<R>(sqlOrOptions, params)
+          .then(([results, fields]) => {
+            cb(null, results, fields)
+          })
           .catch((err) => {
             const mysqlError = mapToMySQLError(err)
             pool.emit('error', mysqlError)
             cb(mysqlError, null as any, null)
           })
-        return
       }
 
       // Promise style
@@ -580,9 +580,27 @@ export function createMySQLPool(config: DataAPIClientConfig): MySQL2Pool {
       callback?: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
     ): any {
       // execute() is the same as query() for Data API (no prepared statements)
-      return pool.query(sqlOrOptions as any, paramsOrCallback as any, callback as any)
-    }
-  }) as MySQL2Pool
+      return pool.query<R>(sqlOrOptions as any, paramsOrCallback as any, callback as any)
+    },
 
-  return pool
+    // Additional methods required for mysql2 compatibility
+    releaseConnection(_connection: PoolConnection): void {
+      // No-op for Data API (connections are managed internally)
+    },
+
+    promise(): any {
+      // Return the pool itself since it already has promise-based methods
+      return pool
+    },
+
+    unprepare(_sql: string): any {
+      // No-op for Data API (no prepared statements)
+      return { sql: _sql }
+    },
+
+    // Pool configuration (for compatibility)
+    config: mysqlConfig
+  })
+
+  return pool as Pool
 }
