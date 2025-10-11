@@ -23,7 +23,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { createMySQLConnection, createMySQLPool } from '../src/compat/mysql2'
-import { loadConfig, waitForCluster, type IntegrationTestConfig } from './setup'
+import { loadConfig, type IntegrationTestConfig } from './setup'
 
 // Drizzle ORM imports
 import { drizzle } from 'drizzle-orm/mysql2'
@@ -95,7 +95,7 @@ describe('Drizzle ORM with MySQL Compat', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createMySQLPool(config)
     // Type assertion needed: our Pool is mysql2-compatible but TypeScript can't verify structural compatibility

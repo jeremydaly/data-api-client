@@ -16,7 +16,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { createMySQLPool } from '../src/compat/mysql2'
-import { loadConfig, waitForCluster, type IntegrationTestConfig } from './setup'
+import { loadConfig, type IntegrationTestConfig } from './setup'
 import knex, { Knex } from 'knex'
 
 describe.skip('Knex with MySQL2 Compat', () => {
@@ -29,7 +29,7 @@ describe.skip('Knex with MySQL2 Compat', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createMySQLPool(config)
 
@@ -284,7 +284,7 @@ describe.skip('Knex Transactions with MySQL2 Compat', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createMySQLPool(config)
 
@@ -396,7 +396,7 @@ describe.skip('Knex Query Builder Features with MySQL2 Compat', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createMySQLPool(config)
 

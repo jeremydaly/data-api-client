@@ -10,8 +10,7 @@ import { createPgClient, createPgPool } from '../src/compat/pg'
 import {
   loadConfig,
   executeSQL,
-  waitForCluster,
-  postgresTables,
+    postgresTables,
   type IntegrationTestConfig
 } from './setup'
 
@@ -24,7 +23,7 @@ describe('PostgreSQL Compatibility - Client', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     // Create standard test tables
     for (const table of postgresTables) {
@@ -169,7 +168,7 @@ describe('PostgreSQL Compatibility - Pool', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createPgPool(config)
 
@@ -233,7 +232,7 @@ describe('PostgreSQL Compatibility - Type Handling', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     client = createPgClient(config)
     await client.connect()
@@ -280,7 +279,7 @@ describe('PostgreSQL Compatibility - Transactions', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     client = createPgClient(config)
     await client.connect()
@@ -357,7 +356,7 @@ describe('PostgreSQL Compatibility - Callbacks', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     client = createPgClient(config)
   }, 60000)
@@ -431,7 +430,7 @@ describe('PostgreSQL Compatibility - Event Emitters', () => {
   beforeAll(async () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
   }, 60000)
 
   afterAll(async () => {

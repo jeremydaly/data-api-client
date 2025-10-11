@@ -7,7 +7,6 @@ import {
   executeSQL,
   getSeedUsersBatch,
   getSeedProductsBatch,
-  waitForCluster,
   mysqlTables,
   type IntegrationTestConfig,
   type TestTable
@@ -100,7 +99,7 @@ describe('MySQL Integration Tests', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     // Create all tables
     for (const table of allTables) {

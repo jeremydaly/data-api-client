@@ -9,7 +9,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { createPgPool } from '../src/compat/pg'
-import { loadConfig, waitForCluster, type IntegrationTestConfig } from './setup'
+import { loadConfig, type IntegrationTestConfig } from './setup'
 
 // Drizzle ORM imports
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -80,7 +80,7 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createPgPool(config)
     db = drizzle(pool)

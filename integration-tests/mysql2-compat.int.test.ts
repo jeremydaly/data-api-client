@@ -7,7 +7,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { createMySQLConnection, createMySQLPool } from '../src/compat/mysql2'
-import { loadConfig, executeSQL, waitForCluster, mysqlTables, type IntegrationTestConfig } from './setup'
+import { loadConfig, executeSQL, mysqlTables, type IntegrationTestConfig } from './setup'
 
 describe('MySQL2 Compatibility - Connection', () => {
   let config: IntegrationTestConfig
@@ -18,7 +18,7 @@ describe('MySQL2 Compatibility - Connection', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     // Create standard test tables
     for (const table of mysqlTables) {
@@ -158,7 +158,7 @@ describe('MySQL2 Compatibility - Pool', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     pool = createMySQLPool(config)
 
@@ -239,7 +239,7 @@ describe('MySQL2 Compatibility - Type Handling', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     connection = createMySQLConnection(config)
     await connection.connect()
@@ -283,7 +283,7 @@ describe('MySQL2 Compatibility - Transactions', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     connection = createMySQLConnection(config)
     await connection.connect()
@@ -365,7 +365,7 @@ describe('MySQL2 Compatibility - Callbacks', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     connection = createMySQLConnection(config)
   }, 60000)
@@ -460,7 +460,7 @@ describe('MySQL2 Compatibility - Ping', () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     connection = createMySQLConnection(config)
     await connection.connect()
@@ -496,7 +496,7 @@ describe('MySQL2 Compatibility - Event Emitters', () => {
   beforeAll(async () => {
     config = loadConfig('mysql')
     rdsClient = new RDSDataClient({ region: config.region })
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
   }, 60000)
 
   afterAll(async () => {
