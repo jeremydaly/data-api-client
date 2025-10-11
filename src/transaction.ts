@@ -9,6 +9,7 @@ import type { InternalConfig, Transaction, QueryOptions } from './types'
 import { parseDatabase, parseHydrate, parseFormatOptions, prepareParams } from './params'
 import { pick } from './utils'
 import { query } from './query'
+import { withRetry } from './retry'
 
 // Init a transaction object and return methods
 export const transaction = (config: InternalConfig, _args?: Partial<QueryOptions>): Transaction => {
@@ -20,6 +21,7 @@ export const transaction = (config: InternalConfig, _args?: Partial<QueryOptions
     database: parseDatabase(config, args), // add database
     hydrateColumnNames: parseHydrate(config, args), // add hydrate
     formatOptions: parseFormatOptions(config, args), // add formatOptions
+    retryOptions: config.retryOptions, // add retry options
     RDS: config.RDS, // reference the RDSDataService instance
     engine: config.engine
   })
@@ -53,9 +55,10 @@ export const commit = async (
 ): Promise<any[]> => {
   const results: any[] = [] // keep track of results
 
-  // Start a transaction
-  const { transactionId } = await config.RDS.send(
-    new BeginTransactionCommand(pick(config, ['resourceArn', 'secretArn', 'database']))
+  // Start a transaction with retry logic
+  const { transactionId } = await withRetry(
+    () => config.RDS.send(new BeginTransactionCommand(pick(config, ['resourceArn', 'secretArn', 'database']))),
+    config.retryOptions
   )
 
   // Add transactionId to the config
@@ -69,13 +72,17 @@ export const commit = async (
     results.push(result)
   }
 
-  // Commit our transaction
-  const { transactionStatus } = await txConfig.RDS.send(
-    new CommitTransactionCommand({
-      resourceArn: txConfig.resourceArn,
-      secretArn: txConfig.secretArn,
-      transactionId: txConfig.transactionId!
-    })
+  // Commit our transaction with retry logic
+  const { transactionStatus } = await withRetry(
+    () =>
+      txConfig.RDS.send(
+        new CommitTransactionCommand({
+          resourceArn: txConfig.resourceArn,
+          secretArn: txConfig.secretArn,
+          transactionId: txConfig.transactionId!
+        })
+      ),
+    config.retryOptions
   )
 
   // Add the transaction status to the results
