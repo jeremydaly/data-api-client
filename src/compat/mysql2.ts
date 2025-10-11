@@ -67,6 +67,7 @@ export interface Connection extends EventEmitter {
 
 export interface Pool extends EventEmitter {
   getConnection(callback: (err: Error | null, connection: PoolConnection) => any): void
+  getConnection(): Promise<PoolConnection>
   end(callback?: (err?: Error) => void): Promise<void>
   // Query overloads
   query<R = any>(sql: string): Promise<[R[] | MySQL2QueryResult<R>, any]>
@@ -495,7 +496,7 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
   }
 
   const pool = Object.assign(eventEmitter, {
-    getConnection(callback: (err: Error | null, connection: PoolConnection) => any): void {
+    getConnection(callback?: (err: Error | null, connection: PoolConnection) => any): void | Promise<PoolConnection> {
       const getConn = (): PoolConnection => {
         // Return a connection-like object with release method
         const connection = createMySQLConnection(config) as PoolConnection
@@ -508,6 +509,12 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
         return connection
       }
 
+      // Promise style (no callback)
+      if (!callback) {
+        return Promise.resolve(getConn())
+      }
+
+      // Callback style
       try {
         const connection = getConn()
         process.nextTick(() => callback(null, connection))
