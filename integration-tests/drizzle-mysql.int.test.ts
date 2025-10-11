@@ -22,7 +22,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import { RDSDataClient } from '@aws-sdk/client-rds-data'
-import { createMySQLPool } from '../src/compat/mysql2'
+import { createMySQLConnection, createMySQLPool } from '../src/compat/mysql2'
 import { loadConfig, waitForCluster, type IntegrationTestConfig } from './setup'
 
 // Drizzle ORM imports
@@ -98,7 +98,8 @@ describe('Drizzle ORM with MySQL Compat', () => {
     await waitForCluster(rdsClient, config)
 
     pool = createMySQLPool(config)
-    db = drizzle(pool)
+    // Type assertion needed: our Pool is mysql2-compatible but TypeScript can't verify structural compatibility
+    db = drizzle(pool as any)
 
     // Create test tables using raw SQL
     await pool.query(`
@@ -652,13 +653,13 @@ describe('Drizzle ORM with MySQL Compat', () => {
     const result = await db.selectDistinct({ age: users.age }).from(users).where(gte(users.age, 95))
 
     const ages = result.map((r) => r.age).filter((a) => a !== null)
-    const uniqueAges = [...new Set(ages)]
+    const uniqueAges = Array.from(new Set(ages))
     expect(ages.length).toBe(uniqueAges.length)
   })
 
   // Raw SQL test
   test('should handle raw SQL with drizzle sql template', async () => {
-    const result = await db.execute(drizzleSql`SELECT COUNT(*) as total FROM drizzle_mysql_users`)
+    const result = await db.execute(drizzleSql`SELECT COUNT(*) as total FROM drizzle_mysql_users`) as any
 
     expect(result[0].length).toBeGreaterThan(0)
     expect(result[0][0]).toHaveProperty('total')
@@ -666,7 +667,7 @@ describe('Drizzle ORM with MySQL Compat', () => {
 
   test('should handle parameterized raw SQL', async () => {
     const searchName = 'Alice'
-    const result = await db.execute(drizzleSql`SELECT * FROM drizzle_mysql_users WHERE name = ${searchName} LIMIT 5`)
+    const result = await db.execute(drizzleSql`SELECT * FROM drizzle_mysql_users WHERE name = ${searchName} LIMIT 5`) as any
 
     expect(result[0]).toBeDefined()
   })
