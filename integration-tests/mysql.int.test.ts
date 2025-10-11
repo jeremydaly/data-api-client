@@ -668,6 +668,19 @@ describe('MySQL Integration Tests', () => {
   })
 
   describe('MySQL String Types', () => {
+    test('should handle UUID strings without typeHint (issue #139)', async () => {
+      // MySQL doesn't support UUID typeHint - it's PostgreSQL-specific
+      // This test verifies UUIDs work as regular strings in MySQL
+      const uuid = '05763a07-5868-e365-db17-8a571158b6d9'
+      await client.query(
+        'INSERT INTO type_tests (varchar_col) VALUES (:value)',
+        { value: uuid }
+      )
+
+      const result = await client.query('SELECT varchar_col FROM type_tests')
+      expect(result.records![0].varchar_col).toBe(uuid)
+    })
+
     test('should handle VARCHAR values', async () => {
       await client.query(
         'INSERT INTO type_tests (varchar_col) VALUES (:value)',
