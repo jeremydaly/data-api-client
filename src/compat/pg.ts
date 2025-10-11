@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events'
+import pgEscape from 'pg-escape'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
 import { mapToPostgresError, type PostgresError } from './errors'
@@ -357,13 +358,11 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
 
     escapeIdentifier(str: string): string {
       // Use pg-escape for PostgreSQL identifier escaping
-      const pgEscape = require('pg-escape')
       return pgEscape.ident(str)
     },
 
     escapeLiteral(str: string): string {
       // Use pg-escape for PostgreSQL literal escaping
-      const pgEscape = require('pg-escape')
       return pgEscape.literal(str)
     },
 
