@@ -1,18 +1,55 @@
 {
   "name": "data-api-client",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./compat/pg": {
+      "types": "./dist/compat/pg.d.ts",
+      "import": "./dist/compat/pg.js",
+      "require": "./dist/compat/pg.js"
+    },
+    "./compat/mysql2": {
+      "types": "./dist/compat/mysql2.d.ts",
+      "import": "./dist/compat/mysql2.js",
+      "require": "./dist/compat/mysql2.js"
+    },
+    "./compat": {
+      "types": "./dist/compat/index.d.ts",
+      "import": "./dist/compat/index.js",
+      "require": "./dist/compat/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
     "prebuild": "rm -rf dist",
     "test": "npm run build && vitest run src/",
     "test:unit": "npm run build && vitest run src/",
-    "test:int": "npm run build && vitest run integration-tests/",
-    "test:int:mysql": "npm run build && vitest run integration-tests/mysql.int.test.ts",
-    "test:int:postgres": "npm run build && vitest run integration-tests/postgres.int.test.ts",
+    "test:int:core": "npm run build && vitest run integration-tests/mysql.int.test.ts integration-tests/pg-compat.int.test.ts",
+    "test:int:core:mysql": "npm run build && vitest run integration-tests/mysql.int.test.ts",
+    "test:int:core:pg": "npm run build && vitest run integration-tests/postgres.int.test.ts",
+    "test:int:compat": "npm run build && vitest run integration-tests/pg-compat.int.test.ts integration-tests/mysql2-compat.int.test.ts",
+    "test:int:compat:pg": "npm run build && vitest run integration-tests/pg-compat.int.test.ts",
+    "test:int:compat:mysql": "npm run build && vitest run integration-tests/mysql2-compat.int.test.ts",
+    "test:int:orm:kysely": "npm run build && vitest run integration-tests/kysely-pg.int.test.ts integration-tests/kysely-mysql.int.test.ts",
+    "test:int:orm:kysely:pg": "npm run build && vitest run integration-tests/kysely-pg.int.test.ts",
+    "test:int:orm:kysely:mysql": "npm run build && vitest run integration-tests/kysely-mysql.int.test.ts",
+    "test:int:orm:drizzle": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts && vitest run integration-tests/drizzle-mysql.int.test.ts",
+    "test:int:orm:drizzle:pg": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts",
+    "test:int:orm:drizzle:mysql": "npm run build && vitest run integration-tests/drizzle-mysql.int.test.ts",
+    "test:int:orm:knex": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts",
     "test-ci": "npm run build && eslint src && vitest run src/",
     "lint": "eslint src",
     "prepublishOnly": "npm run build"
@@ -39,13 +76,18 @@
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.712.0",
     "@types/node": "^24.6.2",
+    "@types/pg": "^8.15.5",
     "@types/pg-escape": "^0.2.3",
     "@types/sqlstring": "^2.3.2",
     "@typescript-eslint/eslint-plugin": "^8.45.0",
     "@typescript-eslint/parser": "^8.45.0",
     "@vitest/ui": "^3.2.4",
+    "drizzle-orm": "^0.44.6",
     "eslint": "^8.12.0",
     "eslint-config-prettier": "^8.5.0",
+    "knex": "^3.1.0",
+    "kysely": "^0.28.7",
+    "pg": "^8.16.3",
     "prettier": "^2.6.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",

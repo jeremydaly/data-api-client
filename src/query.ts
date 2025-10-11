@@ -23,6 +23,7 @@ import {
   processParams
 } from './params'
 import { formatResults } from './results'
+import { withRetry } from './retry'
 
 // Query function (use standard form for `this` context)
 export const query = async function (
@@ -76,9 +77,13 @@ export const query = async function (
     // console.log(`Query parameters: `, JSON.stringify(params.parameters ?? params.parameterSets, null, 2))
 
     // Capture the result for debugging
-    const result: ExecuteStatementCommandOutput | BatchExecuteStatementCommandOutput = await (isBatch
-      ? config.RDS.send(new BatchExecuteStatementCommand(params))
-      : config.RDS.send(new ExecuteStatementCommand(params)))
+    const result: ExecuteStatementCommandOutput | BatchExecuteStatementCommandOutput = await withRetry(
+      () =>
+        isBatch
+          ? config.RDS.send(new BatchExecuteStatementCommand(params))
+          : config.RDS.send(new ExecuteStatementCommand(params)),
+      config.retryOptions
+    )
 
     // Format and return the results
     return formatResults(result, hydrateColumnNames, args[0].includeResultMetadata === true, formatOptions)

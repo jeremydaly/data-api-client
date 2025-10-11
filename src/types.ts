@@ -26,6 +26,16 @@ export type SupportedType =
   | 'stringValue'
   | 'structValue'
 
+// Retry configuration for scale-to-zero cluster wake-ups
+export interface RetryConfig {
+  /** Enable automatic retries for scale-to-zero wake-ups (default: true) */
+  enabled?: boolean
+  /** Maximum number of retry attempts (default: 5) */
+  maxRetries?: number
+  /** Custom list of retryable error codes/names (in addition to built-in wake-up detection) */
+  retryableErrors?: string[]
+}
+
 // Configuration for the Data API Client
 export interface DataAPIClientConfig {
   /** The ARN of your Aurora Serverless Cluster */
@@ -40,6 +50,8 @@ export interface DataAPIClientConfig {
   hydrateColumnNames?: boolean
   /** Date formatting options */
   formatOptions?: FormatOptions
+  /** Retry configuration for scale-to-zero cluster wake-ups */
+  retryOptions?: RetryConfig
   /** Configuration object passed to RDSDataClient constructor */
   options?: RDSDataClientConfig
   /** Custom RDS Data Client instance */
@@ -68,6 +80,7 @@ export interface InternalConfig {
   database?: string
   hydrateColumnNames: boolean
   formatOptions: Required<FormatOptions>
+  retryOptions: Required<RetryConfig>
   RDS: RDSDataClient
   transactionId?: string
 }

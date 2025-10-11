@@ -37,12 +37,16 @@ export function loadConfig(engine: 'mysql' | 'pg'): IntegrationTestConfig {
 
 /**
  * Execute raw SQL statement using RDS Data API
+ * Note: Uses built-in retry logic from data-api-client for cluster wake-up handling
  */
 export async function executeSQL(
   client: RDSDataClient,
   config: IntegrationTestConfig,
   sql: string
 ): Promise<void> {
+  // Import retry logic from the main client
+  const { withRetry } = await import('../src/retry')
+
   const command = new ExecuteStatementCommand({
     resourceArn: config.resourceArn,
     secretArn: config.secretArn,
@@ -50,7 +54,8 @@ export async function executeSQL(
     sql
   })
 
-  await client.send(command)
+  // Use retry logic with default settings (enabled, 5 retries)
+  await withRetry(() => client.send(command))
 }
 
 /**
@@ -270,30 +275,34 @@ export function getSeedProductsBatch(): Array<Array<Record<string, ParameterValu
 /**
  * Wait for cluster to wake up (for serverless v2 that has scaled to zero)
  * Makes a simple query and retries with exponential backoff
+ *
+ * NOTE: This function is no longer needed as of v2.1.0 - the data-api-client now
+ * automatically handles scale-to-zero cluster wake-ups with built-in retry logic.
+ * Keeping this function commented out for reference.
  */
-export async function waitForCluster(
-  client: RDSDataClient,
-  config: IntegrationTestConfig,
-  maxRetries = 5,
-  initialDelay = 2000
-): Promise<void> {
-  let retries = 0
-  let delay = initialDelay
-
-  while (retries < maxRetries) {
-    try {
-      const sql = config.engine === 'mysql' ? 'SELECT 1' : 'SELECT 1 as test'
-      await executeSQL(client, config, sql)
-      return
-    } catch (error) {
-      retries++
-      if (retries >= maxRetries) {
-        throw new Error(
-          `Failed to connect to cluster after ${maxRetries} attempts: ${error}`
-        )
-      }
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      delay *= 2 // Exponential backoff
-    }
-  }
-}
+// export async function waitForCluster(
+//   client: RDSDataClient,
+//   config: IntegrationTestConfig,
+//   maxRetries = 5,
+//   initialDelay = 2000
+// ): Promise<void> {
+//   let retries = 0
+//   let delay = initialDelay
+//
+//   while (retries < maxRetries) {
+//     try {
+//       const sql = config.engine === 'mysql' ? 'SELECT 1' : 'SELECT 1 as test'
+//       await executeSQL(client, config, sql)
+//       return
+//     } catch (error) {
+//       retries++
+//       if (retries >= maxRetries) {
+//         throw new Error(
+//           `Failed to connect to cluster after ${maxRetries} attempts: ${error}`
+//         )
+//       }
+//       await new Promise((resolve) => setTimeout(resolve, delay))
+//       delay *= 2 // Exponential backoff
+//     }
+//   }
+// }

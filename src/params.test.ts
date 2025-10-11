@@ -346,7 +346,7 @@ describe('parameter processing', () => {
       ])
     })
 
-    test('typecasting params', async () => {
+    test('typecasting params (PostgreSQL)', async () => {
       let { processedParams, escapedSql } = processParams(
         'pg',
         'INSERT INTO users(id, name, meta) VALUES(:id, :name, :meta)',
@@ -359,11 +359,51 @@ describe('parameter processing', () => {
         { deserializeDate: false, treatAsLocalDate: false }
       )
       expect(escapedSql).toBe('INSERT INTO users(id, name, meta) VALUES(:id::uuid, :name, :meta::jsonb)')
-      // Auto-detection now adds typeHint for UUID and JSON formats
+      // Auto-detection adds typeHint for UUID and JSON formats in PostgreSQL
       expect(processedParams).toEqual([
         { name: 'id', typeHint: 'UUID', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
         { name: 'name', value: { stringValue: 'Test' } },
         { name: 'meta', typeHint: 'JSON', value: { stringValue: '{"extra": true}' } }
+      ])
+    })
+
+    test('UUID params for MySQL (no typeHint)', async () => {
+      let { processedParams, escapedSql } = processParams(
+        'mysql',
+        'INSERT INTO users(id, name, meta) VALUES(:id, :name, :meta)',
+        { id: { type: 'n_ph' }, name: { type: 'n_ph' }, meta: { type: 'n_ph' } },
+        [
+          { name: 'id', value: '0bb99248-2e7d-4007-a4b2-579b00649ce1' },
+          { name: 'name', value: 'Test' },
+          { name: 'meta', value: '{"extra": true}' }
+        ] as any,
+        { deserializeDate: false, treatAsLocalDate: false }
+      )
+      expect(escapedSql).toBe('INSERT INTO users(id, name, meta) VALUES(:id, :name, :meta)')
+      // MySQL should NOT have UUID or JSON typeHints (they're PostgreSQL-specific)
+      expect(processedParams).toEqual([
+        { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
+        { name: 'name', value: { stringValue: 'Test' } },
+        { name: 'meta', value: { stringValue: '{"extra": true}' } }
+      ])
+    })
+
+    test('typecasting params for MySQL with CAST syntax', async () => {
+      let { processedParams, escapedSql } = processParams(
+        'mysql',
+        'INSERT INTO users(id, name) VALUES(:id, :name)',
+        { id: { type: 'n_ph' }, name: { type: 'n_ph' } },
+        [
+          { name: 'id', value: '0bb99248-2e7d-4007-a4b2-579b00649ce1', cast: 'CHAR(36)' },
+          { name: 'name', value: 'Test' }
+        ] as any,
+        { deserializeDate: false, treatAsLocalDate: false }
+      )
+      expect(escapedSql).toBe('INSERT INTO users(id, name) VALUES(CAST(:id AS CHAR(36)), :name)')
+      // Even with explicit cast, MySQL should not add UUID typeHint
+      expect(processedParams).toEqual([
+        { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
+        { name: 'name', value: { stringValue: 'Test' } }
       ])
     })
   })

@@ -16,6 +16,7 @@ import type { DataAPIClientConfig, InternalConfig, DataAPIClient, QueryOptions, 
 import { error } from './utils'
 import { query } from './query'
 import { transaction } from './transaction'
+import { withRetry } from './retry'
 
 /**
  * Create a Data API client instance
@@ -94,6 +95,20 @@ export const init = (params: DataAPIClientConfig): DataAPIClient => {
         typeof params.formatOptions === 'object' && params.formatOptions.treatAsLocalDate ? true : false
     },
 
+    // Retry options for scale-to-zero cluster wake-ups (enabled by default)
+    retryOptions: {
+      enabled:
+        typeof params.retryOptions === 'object' && params.retryOptions.enabled === false ? false : true,
+      maxRetries:
+        typeof params.retryOptions === 'object' && typeof params.retryOptions.maxRetries === 'number'
+          ? params.retryOptions.maxRetries
+          : 9,
+      retryableErrors:
+        typeof params.retryOptions === 'object' && Array.isArray(params.retryOptions.retryableErrors)
+          ? params.retryOptions.retryableErrors
+          : []
+    },
+
     // TODO: Put this in a separate module for testing?
     // Create an instance of RDSDataClient
     RDS: params.client ? params.client : new RDSDataClient(options)
@@ -106,49 +121,69 @@ export const init = (params: DataAPIClientConfig): DataAPIClient => {
     // Transaction method, pass config and parameters
     transaction: (x?: Partial<QueryOptions>) => transaction(config, x),
 
-    // Export command-based versions of the RDSDataClient methods
+    // Export command-based versions of the RDSDataClient methods with retry logic
     batchExecuteStatement: async (args) =>
-      config.RDS.send(
-        new BatchExecuteStatementCommand({
-          ...args,
-          resourceArn: args.resourceArn || config.resourceArn,
-          secretArn: args.secretArn || config.secretArn,
-          database: args.database || config.database
-        })
+      withRetry(
+        () =>
+          config.RDS.send(
+            new BatchExecuteStatementCommand({
+              ...args,
+              resourceArn: args.resourceArn || config.resourceArn,
+              secretArn: args.secretArn || config.secretArn,
+              database: args.database || config.database
+            })
+          ),
+        config.retryOptions
       ),
     beginTransaction: async (args) =>
-      config.RDS.send(
-        new BeginTransactionCommand({
-          ...(args || {}),
-          resourceArn: args?.resourceArn || config.resourceArn,
-          secretArn: args?.secretArn || config.secretArn,
-          database: args?.database || config.database
-        })
+      withRetry(
+        () =>
+          config.RDS.send(
+            new BeginTransactionCommand({
+              ...(args || {}),
+              resourceArn: args?.resourceArn || config.resourceArn,
+              secretArn: args?.secretArn || config.secretArn,
+              database: args?.database || config.database
+            })
+          ),
+        config.retryOptions
       ),
     commitTransaction: async (args) =>
-      config.RDS.send(
-        new CommitTransactionCommand({
-          ...args,
-          resourceArn: args.resourceArn || config.resourceArn,
-          secretArn: args.secretArn || config.secretArn
-        })
+      withRetry(
+        () =>
+          config.RDS.send(
+            new CommitTransactionCommand({
+              ...args,
+              resourceArn: args.resourceArn || config.resourceArn,
+              secretArn: args.secretArn || config.secretArn
+            })
+          ),
+        config.retryOptions
       ),
     executeStatement: async (args) =>
-      config.RDS.send(
-        new ExecuteStatementCommand({
-          ...args,
-          resourceArn: args.resourceArn || config.resourceArn,
-          secretArn: args.secretArn || config.secretArn,
-          database: args.database || config.database
-        })
+      withRetry(
+        () =>
+          config.RDS.send(
+            new ExecuteStatementCommand({
+              ...args,
+              resourceArn: args.resourceArn || config.resourceArn,
+              secretArn: args.secretArn || config.secretArn,
+              database: args.database || config.database
+            })
+          ),
+        config.retryOptions
       ),
     rollbackTransaction: async (args) =>
-      config.RDS.send(
-        new RollbackTransactionCommand({
-          ...args,
-          resourceArn: args.resourceArn || config.resourceArn,
-          secretArn: args.secretArn || config.secretArn
-        })
+      withRetry(
+        () =>
+          config.RDS.send(
+            new RollbackTransactionCommand({
+              ...args,
+              resourceArn: args.resourceArn || config.resourceArn,
+              secretArn: args.secretArn || config.secretArn
+            })
+          ),
+        config.retryOptions
       )
   }
 } // end init

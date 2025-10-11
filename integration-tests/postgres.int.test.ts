@@ -8,7 +8,6 @@ import {
   getSeedUsers,
   getSeedUsersBatch,
   getSeedProductsBatch,
-  waitForCluster,
   postgresTables,
   type IntegrationTestConfig,
   type TestTable
@@ -147,7 +146,7 @@ describe('PostgreSQL Integration Tests', () => {
     config = loadConfig('pg')
     rdsClient = new RDSDataClient({ region: config.region })
 
-    await waitForCluster(rdsClient, config)
+    // await waitForCluster(rdsClient, config) // No longer needed - automatic retry logic
 
     // Create all tables
     for (const table of allTables) {

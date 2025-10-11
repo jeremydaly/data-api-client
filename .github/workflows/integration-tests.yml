@@ -38,7 +38,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
           role-session-name: GitHubActions-Publish
 
-      - name: Run MySQL integration tests
+      - name: Run MySQL core integration tests
         env:
           MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
           MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
@@ -46,13 +46,69 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: npx vitest run integration-tests/mysql.int.test.ts
 
-      - name: Run PostgreSQL integration tests
+      - name: Run PostgreSQL core integration tests
         env:
           POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
           POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
           POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: npx vitest run integration-tests/postgres.int.test.ts
+
+      - name: Run MySQL2 compatibility layer tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/mysql2-compat.int.test.ts
+
+      - name: Run PostgreSQL (pg) compatibility layer tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/pg-compat.int.test.ts
+
+      - name: Run Drizzle ORM MySQL integration tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/drizzle-mysql.int.test.ts
+
+      - name: Run Drizzle ORM PostgreSQL integration tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/drizzle-pg.int.test.ts
+
+      - name: Run Kysely MySQL integration tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/kysely-mysql.int.test.ts
+
+      - name: Run Kysely PostgreSQL integration tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/kysely-pg.int.test.ts
+
+      - name: Run Knex MySQL integration tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/knex-mysql.int.test.ts
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
