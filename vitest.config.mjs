@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'integration-tests/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
+    hookTimeout: 60000, // 60 seconds for integration tests (cluster wake-up can take 30s)
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
