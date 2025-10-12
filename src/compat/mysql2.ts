@@ -31,15 +31,24 @@ export interface Connection extends EventEmitter {
     sql: string,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  query<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(sql: string, params: any[] | Record<string, any>): Promise<[R[] | MySQL2QueryResult<R>, any]>
   query<R = any>(
     sql: string,
-    params: any[],
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(options: { sql: string; values?: any[]; namedPlaceholders?: boolean }): Promise<[R[] | MySQL2QueryResult<R>, any]>
   query<R = any>(
-    options: { sql: string; values?: any[] },
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>
+  ): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
   // Execute overloads
@@ -48,15 +57,24 @@ export interface Connection extends EventEmitter {
     sql: string,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  execute<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(sql: string, params: any[] | Record<string, any>): Promise<[R[] | MySQL2QueryResult<R>, any]>
   execute<R = any>(
     sql: string,
-    params: any[],
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(options: { sql: string; values?: any[]; namedPlaceholders?: boolean }): Promise<[R[] | MySQL2QueryResult<R>, any]>
   execute<R = any>(
-    options: { sql: string; values?: any[] },
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>
+  ): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
   beginTransaction(callback?: (err: Error | null) => void): Promise<void>
@@ -75,15 +93,24 @@ export interface Pool extends EventEmitter {
     sql: string,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  query<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(sql: string, params: any[] | Record<string, any>): Promise<[R[] | MySQL2QueryResult<R>, any]>
   query<R = any>(
     sql: string,
-    params: any[],
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  query<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(options: { sql: string; values?: any[]; namedPlaceholders?: boolean }): Promise<[R[] | MySQL2QueryResult<R>, any]>
   query<R = any>(
-    options: { sql: string; values?: any[] },
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>
+  ): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  query<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  query<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
   // Execute overloads
@@ -92,15 +119,24 @@ export interface Pool extends EventEmitter {
     sql: string,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  execute<R = any>(sql: string, params: any[]): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(sql: string, params: any[] | Record<string, any>): Promise<[R[] | MySQL2QueryResult<R>, any]>
   execute<R = any>(
     sql: string,
-    params: any[],
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
-  execute<R = any>(options: { sql: string; values?: any[] }): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(options: { sql: string; values?: any[]; namedPlaceholders?: boolean }): Promise<[R[] | MySQL2QueryResult<R>, any]>
   execute<R = any>(
-    options: { sql: string; values?: any[] },
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>
+  ): Promise<[R[] | MySQL2QueryResult<R>, any]>
+  execute<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
+  ): Promise<void>
+  execute<R = any>(
+    options: { sql: string; values?: any[]; namedPlaceholders?: boolean },
+    params: any[] | Record<string, any>,
     callback: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
   ): Promise<void>
   releaseConnection(connection: PoolConnection): void
@@ -135,6 +171,47 @@ export interface MySQL2QueryResult<R = any> {
 function formatMySQLQuery(sql: string, params: any[] = []): string {
   // Use SqlString.format to replace ? placeholders with escaped values
   return SqlString.format(sql, params)
+}
+
+/**
+ * Convert named placeholders (:name) to positional placeholders (?)
+ * and create an ordered array of values.
+ *
+ * This mimics mysql2's namedPlaceholders behavior:
+ * - Finds all :name patterns in SQL
+ * - Replaces them with ? in order of appearance
+ * - Creates array of values in the same order
+ * - Supports multiple references to the same parameter (each gets its own ?)
+ *
+ * Example:
+ *   Input: "SELECT * FROM users WHERE name = :name AND age > :age"
+ *   Params: { name: 'Alice', age: 25 }
+ *   Output: { sql: "SELECT * FROM users WHERE name = ? AND age > ?", values: ['Alice', 25] }
+ *
+ * Example with multiple references:
+ *   Input: "SELECT :x + :x AS double"
+ *   Params: { x: 5 }
+ *   Output: { sql: "SELECT ? + ? AS double", values: [5, 5] }
+ */
+function convertNamedPlaceholders(sql: string, params: Record<string, any>): { sql: string; values: any[] } {
+  const values: any[] = []
+
+  // Match :identifier or :number patterns
+  // Use word boundary to avoid matching partial identifiers
+  const regex = /:(\w+)\b/g
+
+  const convertedSql = sql.replace(regex, (match, paramName) => {
+    // Check if parameter exists in params object
+    if (paramName in params) {
+      values.push(params[paramName])
+      return '?'
+    }
+    // If parameter not found, keep the original (will likely cause an error later)
+    // This matches mysql2 behavior
+    return match
+  })
+
+  return { sql: convertedSql, values }
 }
 
 /**
@@ -208,12 +285,13 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
 
   // Helper to execute query logic
   async function executeQuery<R = any>(
-    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean },
-    params?: any[]
+    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean; namedPlaceholders?: boolean },
+    params?: any[] | Record<string, any>
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
     let sql: string
-    let values: any[] = []
+    let values: any[] | Record<string, any> = []
     let rowsAsArray = false
+    let useNamedPlaceholders = mysqlConfig.namedPlaceholders || false
 
     if (typeof sqlOrOptions === 'string') {
       sql = sqlOrOptions
@@ -225,10 +303,22 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
       // 2. query({ sql }, params) - Drizzle format
       values = sqlOrOptions.values || params || []
       rowsAsArray = sqlOrOptions.rowsAsArray || false
+      // Query-level namedPlaceholders option takes precedence over config
+      if (sqlOrOptions.namedPlaceholders !== undefined) {
+        useNamedPlaceholders = sqlOrOptions.namedPlaceholders
+      }
     }
 
-    // Format MySQL query by replacing ? placeholders with escaped values
-    const formattedSql = formatMySQLQuery(sql, values)
+    // Handle named placeholders if enabled and params is an object (not an array)
+    let formattedSql: string
+    if (useNamedPlaceholders && !Array.isArray(values) && typeof values === 'object' && Object.keys(values).length > 0) {
+      // Convert :name placeholders to ? and create ordered array
+      const converted = convertNamedPlaceholders(sql, values)
+      formattedSql = formatMySQLQuery(converted.sql, converted.values)
+    } else {
+      // Use standard positional placeholder formatting
+      formattedSql = formatMySQLQuery(sql, Array.isArray(values) ? values : [])
+    }
 
     // Execute query through core client
     const queryOptions: any = {
@@ -281,29 +371,33 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
 
     query<R = any>(
       sqlOrOptions: string | { sql: string; values?: any[] },
-      paramsOrCallback?: any[] | ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void),
+      paramsOrCallback?: any[] | Record<string, any> | ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void),
       callback?: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
     ): any {
       // Determine if callback style or promise style
-      let params: any[] = []
+      let params: any[] | Record<string, any> = []
       let cb: ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void) | undefined
 
       if (typeof sqlOrOptions === 'object' && 'sql' in sqlOrOptions) {
         // query({ sql, values? }, params?, callback?)
         // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
-          cb = paramsOrCallback
-        } else if (Array.isArray(paramsOrCallback)) {
+          cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
+        } else if (paramsOrCallback !== undefined) {
           params = paramsOrCallback
-          cb = callback
+          if (callback !== undefined) {
+            cb = callback
+          }
         }
       } else {
         // query(sql, params?, callback?)
         if (typeof paramsOrCallback === 'function') {
-          cb = paramsOrCallback
-        } else if (Array.isArray(paramsOrCallback)) {
+          cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
+        } else if (paramsOrCallback !== undefined) {
           params = paramsOrCallback
-          cb = callback
+          if (callback !== undefined) {
+            cb = callback
+          }
         }
       }
 
@@ -459,12 +553,13 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
 
   // Helper to execute query logic
   async function executePoolQuery<R = any>(
-    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean },
-    params?: any[]
+    sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean; namedPlaceholders?: boolean },
+    params?: any[] | Record<string, any>
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
     let sql: string
-    let values: any[] = []
+    let values: any[] | Record<string, any> = []
     let rowsAsArray = false
+    let useNamedPlaceholders = mysqlConfig.namedPlaceholders || false
 
     if (typeof sqlOrOptions === 'string') {
       sql = sqlOrOptions
@@ -476,10 +571,22 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
       // 2. query({ sql }, params) - Drizzle format
       values = sqlOrOptions.values || params || []
       rowsAsArray = sqlOrOptions.rowsAsArray || false
+      // Query-level namedPlaceholders option takes precedence over config
+      if (sqlOrOptions.namedPlaceholders !== undefined) {
+        useNamedPlaceholders = sqlOrOptions.namedPlaceholders
+      }
     }
 
-    // Format MySQL query by replacing ? placeholders with escaped values
-    const formattedSql = formatMySQLQuery(sql, values)
+    // Handle named placeholders if enabled and params is an object (not an array)
+    let formattedSql: string
+    if (useNamedPlaceholders && !Array.isArray(values) && typeof values === 'object' && Object.keys(values).length > 0) {
+      // Convert :name placeholders to ? and create ordered array
+      const converted = convertNamedPlaceholders(sql, values)
+      formattedSql = formatMySQLQuery(converted.sql, converted.values)
+    } else {
+      // Use standard positional placeholder formatting
+      formattedSql = formatMySQLQuery(sql, Array.isArray(values) ? values : [])
+    }
 
     const result = await core.query<R>({
       sql: formattedSql,
@@ -534,29 +641,33 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
 
     query<R = any>(
       sqlOrOptions: string | { sql: string; values?: any[] },
-      paramsOrCallback?: any[] | ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void),
+      paramsOrCallback?: any[] | Record<string, any> | ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void),
       callback?: (err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void
     ): any {
       // Determine if callback style or promise style
-      let params: any[] = []
+      let params: any[] | Record<string, any> = []
       let cb: ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void) | undefined
 
       if (typeof sqlOrOptions === 'object' && 'sql' in sqlOrOptions) {
         // query({ sql, values? }, params?, callback?)
         // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
-          cb = paramsOrCallback
-        } else if (Array.isArray(paramsOrCallback)) {
+          cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
+        } else if (paramsOrCallback !== undefined) {
           params = paramsOrCallback
-          cb = callback
+          if (callback !== undefined) {
+            cb = callback
+          }
         }
       } else {
         // query(sql, params?, callback?)
         if (typeof paramsOrCallback === 'function') {
-          cb = paramsOrCallback
-        } else if (Array.isArray(paramsOrCallback)) {
+          cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
+        } else if (paramsOrCallback !== undefined) {
           params = paramsOrCallback
-          cb = callback
+          if (callback !== undefined) {
+            cb = callback
+          }
         }
       }
 
