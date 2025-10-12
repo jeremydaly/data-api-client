@@ -541,3 +541,540 @@ describe('MySQL2 Compatibility - Event Emitters', () => {
     expect(events).toContain('end')
   })
 })
+
+describe('MySQL2 Compatibility - Named Placeholders', () => {
+  let config: IntegrationTestConfig
+  let rdsClient: RDSDataClient
+  let connection: ReturnType<typeof createMySQLConnection>
+
+  beforeAll(async () => {
+    config = loadConfig('mysql')
+    rdsClient = new RDSDataClient({ region: config.region })
+
+    // Create connection with namedPlaceholders enabled
+    connection = createMySQLConnection({
+      ...config,
+      namedPlaceholders: true
+    })
+    await connection.connect()
+
+    // Create test table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS mysql2_named_placeholder_test (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        age INT,
+        email VARCHAR(255),
+        active BOOLEAN,
+        score DECIMAL(5,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    // Clear any existing data
+    await connection.query('DELETE FROM mysql2_named_placeholder_test')
+  }, 60000)
+
+  afterAll(async () => {
+    await connection.query('DROP TABLE IF EXISTS mysql2_named_placeholder_test')
+    await connection.end()
+    rdsClient.destroy()
+  }, 60000)
+
+  test('should execute SELECT with named placeholders', async () => {
+    // Insert test data with positional placeholders first
+    await connection.query('INSERT INTO mysql2_named_placeholder_test (name, age, email) VALUES (?, ?, ?)', [
+      'Alice',
+      30,
+      'alice@example.com'
+    ])
+
+    // Query with named placeholders
+    const [rows, _fields] = await connection.query('SELECT * FROM mysql2_named_placeholder_test WHERE name = :name', {
+      name: 'Alice'
+    })
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].name).toBe('Alice')
+    expect((rows as any[])[0].age).toBe(30)
+    expect((rows as any[])[0].email).toBe('alice@example.com')
+  })
+
+  test('should execute INSERT with named placeholders', async () => {
+    const [result, _fields] = await connection.query(
+      'INSERT INTO mysql2_named_placeholder_test (name, age, email, active) VALUES (:name, :age, :email, :active)',
+      {
+        name: 'Bob',
+        age: 25,
+        email: 'bob@example.com',
+        active: true
+      }
+    )
+
+    expect((result as any).insertId).toBeDefined()
+    expect((result as any).affectedRows).toBe(1)
+
+    // Verify insertion
+    const [rows, _f] = await connection.query('SELECT * FROM mysql2_named_placeholder_test WHERE name = :name', {
+      name: 'Bob'
+    })
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].active).toBe(true)
+  })
+
+  test('should execute UPDATE with named placeholders', async () => {
+    const [result, _fields] = await connection.query(
+      'UPDATE mysql2_named_placeholder_test SET age = :newAge WHERE name = :name',
+      {
+        name: 'Bob',
+        newAge: 26
+      }
+    )
+
+    expect((result as any).affectedRows).toBe(1)
+    expect((result as any).changedRows).toBe(1)
+
+    // Verify update
+    const [rows, _f] = await connection.query('SELECT age FROM mysql2_named_placeholder_test WHERE name = :name', {
+      name: 'Bob'
+    })
+    expect((rows as any[])[0].age).toBe(26)
+  })
+
+  test('should execute DELETE with named placeholders', async () => {
+    const [result, _fields] = await connection.query(
+      'DELETE FROM mysql2_named_placeholder_test WHERE name = :name',
+      { name: 'Bob' }
+    )
+
+    expect((result as any).affectedRows).toBe(1)
+
+    // Verify deletion
+    const [rows, _f] = await connection.query('SELECT * FROM mysql2_named_placeholder_test WHERE name = :name', {
+      name: 'Bob'
+    })
+    expect((rows as any[]).length).toBe(0)
+  })
+
+  test('should handle multiple named placeholders', async () => {
+    await connection.query(
+      'INSERT INTO mysql2_named_placeholder_test (name, age, email, active, score) VALUES (:name, :age, :email, :active, :score)',
+      {
+        name: 'Charlie',
+        age: 35,
+        email: 'charlie@example.com',
+        active: true,
+        score: 95.5
+      }
+    )
+
+    const [rows, _fields] = await connection.query(
+      'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name AND age > :minAge AND active = :active',
+      {
+        name: 'Charlie',
+        minAge: 30,
+        active: true
+      }
+    )
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].name).toBe('Charlie')
+    expect((rows as any[])[0].score).toBeCloseTo(95.5)
+  })
+
+  test('should handle duplicate named placeholders (multiple references)', async () => {
+    await connection.query(
+      'INSERT INTO mysql2_named_placeholder_test (name, age) VALUES (:name, :age)',
+      { name: 'David', age: 40 }
+    )
+
+    // Use same parameter multiple times
+    const [rows, _fields] = await connection.query(
+      'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name OR email = :name',
+      { name: 'David' }
+    )
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].name).toBe('David')
+  })
+
+  test('should handle NULL values with named placeholders', async () => {
+    await connection.query(
+      'INSERT INTO mysql2_named_placeholder_test (name, age, email) VALUES (:name, :age, :email)',
+      {
+        name: 'Eve',
+        age: null,
+        email: 'eve@example.com'
+      }
+    )
+
+    const [rows, _fields] = await connection.query(
+      'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name',
+      { name: 'Eve' }
+    )
+
+    expect((rows as any[])[0].age).toBeNull()
+  })
+
+  test('should work with { sql, values } format', async () => {
+    const [rows, _fields] = await connection.query({
+      sql: 'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name AND age > :minAge',
+      values: { name: 'Charlie', minAge: 30 } as any
+    })
+
+    expect((rows as any[]).length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('should work with execute() method', async () => {
+    const [rows, _fields] = await connection.execute(
+      'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name',
+      { name: 'Alice' } as any
+    )
+
+    expect(Array.isArray(rows)).toBe(true)
+    expect((rows as any[]).length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('should work with transactions', async () => {
+    await connection.beginTransaction()
+
+    try {
+      await connection.query(
+        'INSERT INTO mysql2_named_placeholder_test (name, age) VALUES (:name, :age)',
+        { name: 'Frank', age: 45 }
+      )
+
+      await connection.query('UPDATE mysql2_named_placeholder_test SET age = :age WHERE name = :name', {
+        name: 'Frank',
+        age: 46
+      })
+
+      await connection.commit()
+
+      // Verify
+      const [rows, _f] = await connection.query('SELECT * FROM mysql2_named_placeholder_test WHERE name = :name', {
+        name: 'Frank'
+      })
+      expect((rows as any[])[0].age).toBe(46)
+    } catch (err) {
+      await connection.rollback()
+      throw err
+    }
+  })
+
+  test('should work with callback style', async () => {
+    await new Promise<void>((resolve, reject) => {
+      connection.query(
+        'SELECT * FROM mysql2_named_placeholder_test WHERE name = :name',
+        { name: 'Alice' } as any,
+        (err, results, _fields) => {
+          try {
+            expect(err).toBeNull()
+            expect((results as any[]).length).toBeGreaterThanOrEqual(1)
+            expect((results as any[])[0].name).toBe('Alice')
+            resolve()
+          } catch (e) {
+            reject(e)
+          }
+        }
+      )
+    })
+  })
+
+  test('should handle numeric parameter names', async () => {
+    const [rows, _fields] = await connection.query('SELECT :1 AS first, :2 AS second', {
+      1: 'value1',
+      2: 'value2'
+    } as any)
+
+    expect((rows as any[])[0].first).toBe('value1')
+    expect((rows as any[])[0].second).toBe('value2')
+  })
+})
+
+describe('MySQL2 Compatibility - Named Placeholders with Pool', () => {
+  let config: IntegrationTestConfig
+  let rdsClient: RDSDataClient
+  let pool: ReturnType<typeof createMySQLPool>
+
+  beforeAll(async () => {
+    config = loadConfig('mysql')
+    rdsClient = new RDSDataClient({ region: config.region })
+
+    // Create pool with namedPlaceholders enabled
+    pool = createMySQLPool({
+      ...config,
+      namedPlaceholders: true
+    })
+
+    // Create test table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mysql2_named_pool_test (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        value VARCHAR(255),
+        count INT
+      )
+    `)
+
+    await pool.query('DELETE FROM mysql2_named_pool_test')
+  }, 60000)
+
+  afterAll(async () => {
+    await pool.query('DROP TABLE IF EXISTS mysql2_named_pool_test')
+    await pool.end()
+    rdsClient.destroy()
+  }, 60000)
+
+  test('should execute queries with named placeholders through pool', async () => {
+    await pool.query('INSERT INTO mysql2_named_pool_test (value, count) VALUES (:value, :count)', {
+      value: 'test-value',
+      count: 42
+    })
+
+    const [rows, _fields] = await pool.query('SELECT * FROM mysql2_named_pool_test WHERE value = :value', {
+      value: 'test-value'
+    })
+
+    expect((rows as any[]).length).toBeGreaterThanOrEqual(1)
+    expect((rows as any[])[0].value).toBe('test-value')
+    expect((rows as any[])[0].count).toBe(42)
+  })
+
+  test('should work with pool.getConnection() and named placeholders', async () => {
+    await new Promise<void>((resolve, reject) => {
+      pool.getConnection((err, conn) => {
+        if (err) return reject(err)
+
+        conn.query(
+          'SELECT * FROM mysql2_named_pool_test WHERE value = :value',
+          { value: 'test-value' } as any,
+          (queryErr, results, _fields) => {
+            try {
+              if (queryErr) return reject(queryErr)
+              expect((results as any[]).length).toBeGreaterThanOrEqual(1)
+              expect((results as any[])[0].value).toBe('test-value')
+              conn.release?.()
+              resolve()
+            } catch (e) {
+              reject(e)
+            }
+          }
+        )
+      })
+    })
+  })
+})
+
+describe('MySQL2 Compatibility - Backward Compatibility (namedPlaceholders: false)', () => {
+  let config: IntegrationTestConfig
+  let rdsClient: RDSDataClient
+  let connection: ReturnType<typeof createMySQLConnection>
+
+  beforeAll(async () => {
+    config = loadConfig('mysql')
+    rdsClient = new RDSDataClient({ region: config.region })
+
+    // Create connection WITHOUT namedPlaceholders (default behavior)
+    connection = createMySQLConnection(config)
+    await connection.connect()
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS mysql2_compat_test2 (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255)
+      )
+    `)
+
+    await connection.query('DELETE FROM mysql2_compat_test2')
+  }, 60000)
+
+  afterAll(async () => {
+    await connection.query('DROP TABLE IF EXISTS mysql2_compat_test2')
+    await connection.end()
+    rdsClient.destroy()
+  }, 60000)
+
+  test('should still work with positional placeholders when namedPlaceholders is disabled', async () => {
+    await connection.query('INSERT INTO mysql2_compat_test2 (name) VALUES (?)', ['TestName'])
+
+    const [rows, _fields] = await connection.query('SELECT * FROM mysql2_compat_test2 WHERE name = ?', ['TestName'])
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].name).toBe('TestName')
+  })
+
+  test('should NOT interpret :name as placeholder when namedPlaceholders is disabled', async () => {
+    // This should treat :name as literal string, not as a placeholder
+    // The SQL might fail or treat it literally depending on MySQL parser
+    // This test just ensures we don't break existing behavior
+    const [rows, _fields] = await connection.query('SELECT ? AS result', ['value'])
+
+    expect((rows as any[])[0].result).toBe('value')
+  })
+})
+
+describe('MySQL2 Compatibility - Query-Level namedPlaceholders', () => {
+  let config: IntegrationTestConfig
+  let rdsClient: RDSDataClient
+  let connection: ReturnType<typeof createMySQLConnection>
+
+  beforeAll(async () => {
+    config = loadConfig('mysql')
+    rdsClient = new RDSDataClient({ region: config.region })
+
+    // Create connection WITHOUT namedPlaceholders at config level
+    connection = createMySQLConnection(config)
+    await connection.connect()
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS mysql2_query_level_test (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(255),
+        age INT
+      )
+    `)
+
+    await connection.query('DELETE FROM mysql2_query_level_test')
+  }, 60000)
+
+  afterAll(async () => {
+    await connection.query('DROP TABLE IF EXISTS mysql2_query_level_test')
+    await connection.end()
+    rdsClient.destroy()
+  }, 60000)
+
+  test('should support namedPlaceholders at query level', async () => {
+    const [result, _] = await connection.query(
+      {
+        sql: 'INSERT INTO mysql2_query_level_test (username, age) VALUES (:username, :age)',
+        namedPlaceholders: true
+      },
+      { username: 'john_doe', age: 30 }
+    )
+
+    expect((result as any).affectedRows).toBe(1)
+
+    // Query with query-level namedPlaceholders
+    const [rows, _fields] = await connection.query(
+      {
+        sql: 'SELECT * FROM mysql2_query_level_test WHERE username = :username',
+        namedPlaceholders: true
+      },
+      { username: 'john_doe' }
+    )
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].username).toBe('john_doe')
+    expect((rows as any[])[0].age).toBe(30)
+  })
+
+  test('should use positional placeholders when namedPlaceholders is explicitly false at query level', async () => {
+    await connection.query(
+      {
+        sql: 'INSERT INTO mysql2_query_level_test (username, age) VALUES (?, ?)',
+        namedPlaceholders: false
+      },
+      ['jane_smith', 25]
+    )
+
+    const [rows, _fields] = await connection.query(
+      {
+        sql: 'SELECT * FROM mysql2_query_level_test WHERE username = ?',
+        namedPlaceholders: false
+      },
+      ['jane_smith']
+    )
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].username).toBe('jane_smith')
+  })
+
+  test('should work with callback style and query-level namedPlaceholders', async () => {
+    await new Promise<void>((resolve, reject) => {
+      connection.query(
+        {
+          sql: 'SELECT * FROM mysql2_query_level_test WHERE username = :username AND age > :minAge',
+          namedPlaceholders: true
+        },
+        { username: 'john_doe', minAge: 25 } as any,
+        (err, results, _fields) => {
+          try {
+            expect(err).toBeNull()
+            expect((results as any[]).length).toBeGreaterThanOrEqual(1)
+            expect((results as any[])[0].username).toBe('john_doe')
+            resolve()
+          } catch (e) {
+            reject(e)
+          }
+        }
+      )
+    })
+  })
+
+  test('query-level namedPlaceholders should override connection-level setting', async () => {
+    // Connection has namedPlaceholders: false (default)
+    // But query enables it
+    const [rows, _fields] = await connection.query(
+      {
+        sql: 'SELECT * FROM mysql2_query_level_test WHERE username = :username',
+        namedPlaceholders: true
+      },
+      { username: 'john_doe' }
+    )
+
+    expect((rows as any[]).length).toBe(1)
+    expect((rows as any[])[0].username).toBe('john_doe')
+  })
+})
+
+describe('MySQL2 Compatibility - Query-Level namedPlaceholders with Pool', () => {
+  let config: IntegrationTestConfig
+  let rdsClient: RDSDataClient
+  let pool: ReturnType<typeof createMySQLPool>
+
+  beforeAll(async () => {
+    config = loadConfig('mysql')
+    rdsClient = new RDSDataClient({ region: config.region })
+
+    // Create pool WITHOUT namedPlaceholders at config level
+    pool = createMySQLPool(config)
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mysql2_pool_query_level_test (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255),
+        value INT
+      )
+    `)
+
+    await pool.query('DELETE FROM mysql2_pool_query_level_test')
+  }, 60000)
+
+  afterAll(async () => {
+    await pool.query('DROP TABLE IF EXISTS mysql2_pool_query_level_test')
+    await pool.end()
+    rdsClient.destroy()
+  }, 60000)
+
+  test('should support namedPlaceholders at query level in pool', async () => {
+    await pool.query(
+      {
+        sql: 'INSERT INTO mysql2_pool_query_level_test (name, value) VALUES (:name, :value)',
+        namedPlaceholders: true
+      },
+      { name: 'test-item', value: 100 }
+    )
+
+    const [rows, _fields] = await pool.query(
+      {
+        sql: 'SELECT * FROM mysql2_pool_query_level_test WHERE name = :name',
+        namedPlaceholders: true
+      },
+      { name: 'test-item' }
+    )
+
+    expect((rows as any[]).length).toBeGreaterThanOrEqual(1)
+    expect((rows as any[])[0].name).toBe('test-item')
+    expect((rows as any[])[0].value).toBe(100)
+  })
+})

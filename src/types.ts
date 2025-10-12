@@ -56,6 +56,8 @@ export interface DataAPIClientConfig {
   options?: RDSDataClientConfig
   /** Custom RDS Data Client instance */
   client?: RDSDataClient
+  /** Enable named placeholders (:name syntax) for mysql2 compatibility layer (default: false) */
+  namedPlaceholders?: boolean
   /** @deprecated Set in options instead */
   region?: string
   /** @deprecated Set in options instead */

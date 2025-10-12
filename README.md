@@ -204,6 +204,7 @@ Below is a table containing all of the possible configuration options for the `d
 | database           | `string`        | _Optional_ default database to use with queries. Can be overridden when querying.                                                                                                                                                                   |                                                  |
 | engine             | `mysql` or `pg` | The type of database engine you're connecting to (MySQL or Postgres).                                                                                                                                                                               | `pg`                                             |
 | hydrateColumnNames | `boolean`       | When `true`, results will be returned as objects with column names as keys. If `false`, results will be returned as an array of values.                                                                                                             | `true`                                           |
+| namedPlaceholders  | `boolean`       | Enable named placeholders (`:name` syntax) for mysql2 compatibility layer. When `true`, parameters use object format. Only applies to mysql2 compat layer.                                                                                          | `false`                                          |
 | options            | `object`        | An _optional_ configuration object that is passed directly into the RDSDataClient constructor. See [AWS SDK docs](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-rds-data/classes/rdsdataclient.html) for available options. | `{}`                                             |
 | formatOptions      | `object`        | Formatting options to auto parse dates and coerce native JavaScript date objects to supported date formats. Valid keys are `deserializeDate` and `treatAsLocalDate`. Both accept boolean values.                                                    | `deserializeDate: true, treatAsLocalDate: false` |
 | retryOptions       | `object`        | Configuration for automatic retry logic. Valid keys are `enabled` (boolean), `maxRetries` (number), and `retryableErrors` (string array).                                                                                                            | `enabled: true, maxRetries: 9`                   |
@@ -531,7 +532,7 @@ const connection = createMySQLConnection({
   database: 'myDatabase'
 })
 
-// Use like mysql2/promise
+// Use like mysql2/promise with positional placeholders
 const [rows, fields] = await connection.query('SELECT * FROM users WHERE id = ?', [123])
 await connection.execute('INSERT INTO users (name, email) VALUES (?, ?)', ['Alice', 'alice@example.com'])
 
@@ -558,6 +559,114 @@ const connection = await pool.getConnection()
 const [rows] = await connection.query('SELECT * FROM users')
 connection.release() // Optional - no-op for Data API
 ```
+
+#### Named Placeholders Support
+
+The mysql2 compatibility layer supports **named placeholders** (`:name` syntax), matching the behavior of the native mysql2 library's `namedPlaceholders` option:
+
+```javascript
+import { createMySQLConnection, createMySQLPool } from 'data-api-client/compat/mysql2'
+
+// Create a connection with namedPlaceholders enabled
+const connection = createMySQLConnection({
+  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster',
+  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
+  database: 'myDatabase',
+  namedPlaceholders: true  // Enable named placeholders
+})
+
+// Use named placeholders with object parameters
+const [users] = await connection.query(
+  'SELECT * FROM users WHERE name = :name AND age > :age',
+  { name: 'Alice', age: 25 }
+)
+
+// INSERT with named placeholders
+await connection.query(
+  'INSERT INTO users (name, email, active) VALUES (:name, :email, :active)',
+  { name: 'Bob', email: 'bob@example.com', active: true }
+)
+
+// UPDATE with named placeholders
+await connection.query(
+  'UPDATE users SET age = :newAge WHERE id = :id',
+  { id: 123, newAge: 30 }
+)
+
+// Named placeholders work with transactions
+await connection.beginTransaction()
+try {
+  await connection.query(
+    'INSERT INTO orders (user_id, total) VALUES (:userId, :total)',
+    { userId: 123, total: 99.99 }
+  )
+  await connection.query(
+    'UPDATE users SET last_order = NOW() WHERE id = :userId',
+    { userId: 123 }
+  )
+  await connection.commit()
+} catch (err) {
+  await connection.rollback()
+}
+
+// Named placeholders also work with pools
+const pool = createMySQLPool({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase',
+  namedPlaceholders: true
+})
+
+const [results] = await pool.query(
+  'SELECT * FROM products WHERE category = :category AND price < :maxPrice',
+  { category: 'electronics', maxPrice: 500 }
+)
+```
+
+**Named Placeholders Features:**
+- Use `:paramName` syntax in SQL (colon followed by identifier)
+- Pass parameters as objects: `{ paramName: value }`
+- Same parameter can be referenced multiple times in the query
+- Works with all query types (SELECT, INSERT, UPDATE, DELETE)
+- Fully compatible with transactions, pools, and callbacks
+- Backward compatible: positional `?` placeholders still work when `namedPlaceholders` is disabled (default)
+
+**Query-Level namedPlaceholders:**
+
+You can also enable or disable named placeholders on a per-query basis, which overrides the connection-level setting:
+
+```javascript
+// Connection WITHOUT namedPlaceholders at config level
+const connection = createMySQLConnection({
+  resourceArn: 'arn:...',
+  secretArn: 'arn:...',
+  database: 'myDatabase'
+  // namedPlaceholders NOT set (defaults to false)
+})
+
+// Enable namedPlaceholders for specific queries
+const [rows] = await connection.query(
+  {
+    sql: 'SELECT * FROM users WHERE username = :username AND age > :minAge',
+    namedPlaceholders: true  // Enable for this query only
+  },
+  { username: 'john_doe', minAge: 25 }
+)
+
+// Or explicitly disable for a specific query (when connection has it enabled)
+const [rows2] = await connection.query(
+  {
+    sql: 'SELECT * FROM users WHERE id = ?',
+    namedPlaceholders: false  // Use positional placeholders for this query
+  },
+  [123]
+)
+```
+
+This allows you to:
+- Use named placeholders in specific queries without enabling it globally
+- Mix named and positional placeholders in different queries
+- Override connection-level settings when needed
 
 ### pg Compatibility
 
