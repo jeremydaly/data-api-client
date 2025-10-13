@@ -1,4 +1,4 @@
-![Aurora Serverless Data API Client](https://user-images.githubusercontent.com/2053544/79285017-44053500-7e8a-11ea-8515-998ccf9c2d2e.png)
+![Aurora Serverless Data API Client](https://github.com/jeremydaly/data-api-client/blob/main/data-api-client-logo-v2.png?raw=true)
 
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 [![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
@@ -177,6 +177,27 @@ Not only are there no column names, but you have to pull the value from the data
 ```
 
 Lots of extra work that the **Data API Client** handles automatically for you, converting arrays to native JavaScript arrays and providing clean, usable data. 😀
+
+### Why not use the Data API's built-in JSON support?
+
+The AWS Data API offers a [built-in JSON format option](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api-json.html) via the `formatRecordsAs: 'JSON'` parameter. While this simplifies basic result parsing, the **Data API Client** provides significantly more value:
+
+**Type Fidelity:** AWS's JSON format converts everything to basic JSON types, losing database-specific type information. The Data API Client preserves PostgreSQL-specific types (UUID, MACADDR, range types, etc.) using `columnMetadata.typeName` for intelligent type handling.
+
+**Advanced Type Conversion:**
+- **PostgreSQL arrays**: Automatically flattens complex `arrayValue` structures to native JavaScript arrays
+- **Binary data**: Converts `Uint8Array` to Node.js `Buffer` objects
+- **JSON columns**: Auto-parses JSON strings to objects
+- **Date handling**: Configurable deserialization with `deserializeDate` and `treatAsLocalDate` options
+- **MySQL YEAR type**: Converts strings to integers automatically
+
+**Flexible Output Formats:** AWS JSON only returns objects. The Data API Client lets you choose between object format (`hydrateColumnNames: true`) for easy access by name, or array format (`hydrateColumnNames: false`) for better performance when column names aren't needed.
+
+**Richer Result Information:** Beyond just formatted records, you get `numberOfRecordsUpdated`, `insertId`, `columnMetadata` (optional), and batch `updateResults` for comprehensive operation feedback.
+
+**No Additional Limitations:** AWS's JSON support requires unique column names and has a 10MB response limit. The Data API Client works with any column configuration and imposes no additional size restrictions.
+
+In summary, AWS's JSON support is a basic convenience feature, while the **Data API Client** provides true type intelligence, format flexibility, and seamless handling of complex PostgreSQL features that the native Data API doesn't support well.
 
 ## Installation and Setup
 
