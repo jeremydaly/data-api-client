@@ -12,6 +12,7 @@ coverage/
 
 # Temporary files
 tmp/
+.DS_Store
 
 # Environment variables
 .env

@@ -207,13 +207,14 @@ Below is a table containing all of the possible configuration options for the `d
 | namedPlaceholders  | `boolean`       | Enable named placeholders (`:name` syntax) for mysql2 compatibility layer. When `true`, parameters use object format. Only applies to mysql2 compat layer.                                                                                          | `false`                                          |
 | options            | `object`        | An _optional_ configuration object that is passed directly into the RDSDataClient constructor. See [AWS SDK docs](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-rds-data/classes/rdsdataclient.html) for available options. | `{}`                                             |
 | formatOptions      | `object`        | Formatting options to auto parse dates and coerce native JavaScript date objects to supported date formats. Valid keys are `deserializeDate` and `treatAsLocalDate`. Both accept boolean values.                                                    | `deserializeDate: true, treatAsLocalDate: false` |
-| retryOptions       | `object`        | Configuration for automatic retry logic. Valid keys are `enabled` (boolean), `maxRetries` (number), and `retryableErrors` (string array).                                                                                                            | `enabled: true, maxRetries: 9`                   |
+| retryOptions       | `object`        | Configuration for automatic retry logic. Valid keys are `enabled` (boolean), `maxRetries` (number), and `retryableErrors` (string array).                                                                                                           | `enabled: true, maxRetries: 9`                   |
 
 ### Automatic Retry Logic
 
 Version 2.1 includes built-in retry logic to handle Aurora Serverless scale-to-zero cluster wake-ups automatically. When your cluster is paused and needs to resume, the client will automatically retry your queries with optimized delays.
 
 **Features:**
+
 - **Smart Error Detection**: Automatically detects `DatabaseResumingException` and connection errors
 - **Strategy-Based Retries**: Different retry strategies based on error type:
   - DatabaseResumingException: Up to 10 attempts with progressive delays (0s, 2s, 5s, 10s, 15s, 20s, 25s, 30s, 35s, 40s)
@@ -572,38 +573,30 @@ const connection = createMySQLConnection({
   resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster',
   secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
   database: 'myDatabase',
-  namedPlaceholders: true  // Enable named placeholders
+  namedPlaceholders: true // Enable named placeholders
 })
 
 // Use named placeholders with object parameters
-const [users] = await connection.query(
-  'SELECT * FROM users WHERE name = :name AND age > :age',
-  { name: 'Alice', age: 25 }
-)
+const [users] = await connection.query('SELECT * FROM users WHERE name = :name AND age > :age', {
+  name: 'Alice',
+  age: 25
+})
 
 // INSERT with named placeholders
-await connection.query(
-  'INSERT INTO users (name, email, active) VALUES (:name, :email, :active)',
-  { name: 'Bob', email: 'bob@example.com', active: true }
-)
+await connection.query('INSERT INTO users (name, email, active) VALUES (:name, :email, :active)', {
+  name: 'Bob',
+  email: 'bob@example.com',
+  active: true
+})
 
 // UPDATE with named placeholders
-await connection.query(
-  'UPDATE users SET age = :newAge WHERE id = :id',
-  { id: 123, newAge: 30 }
-)
+await connection.query('UPDATE users SET age = :newAge WHERE id = :id', { id: 123, newAge: 30 })
 
 // Named placeholders work with transactions
 await connection.beginTransaction()
 try {
-  await connection.query(
-    'INSERT INTO orders (user_id, total) VALUES (:userId, :total)',
-    { userId: 123, total: 99.99 }
-  )
-  await connection.query(
-    'UPDATE users SET last_order = NOW() WHERE id = :userId',
-    { userId: 123 }
-  )
+  await connection.query('INSERT INTO orders (user_id, total) VALUES (:userId, :total)', { userId: 123, total: 99.99 })
+  await connection.query('UPDATE users SET last_order = NOW() WHERE id = :userId', { userId: 123 })
   await connection.commit()
 } catch (err) {
   await connection.rollback()
@@ -617,13 +610,14 @@ const pool = createMySQLPool({
   namedPlaceholders: true
 })
 
-const [results] = await pool.query(
-  'SELECT * FROM products WHERE category = :category AND price < :maxPrice',
-  { category: 'electronics', maxPrice: 500 }
-)
+const [results] = await pool.query('SELECT * FROM products WHERE category = :category AND price < :maxPrice', {
+  category: 'electronics',
+  maxPrice: 500
+})
 ```
 
 **Named Placeholders Features:**
+
 - Use `:paramName` syntax in SQL (colon followed by identifier)
 - Pass parameters as objects: `{ paramName: value }`
 - Same parameter can be referenced multiple times in the query
@@ -648,7 +642,7 @@ const connection = createMySQLConnection({
 const [rows] = await connection.query(
   {
     sql: 'SELECT * FROM users WHERE username = :username AND age > :minAge',
-    namedPlaceholders: true  // Enable for this query only
+    namedPlaceholders: true // Enable for this query only
   },
   { username: 'john_doe', minAge: 25 }
 )
@@ -657,13 +651,14 @@ const [rows] = await connection.query(
 const [rows2] = await connection.query(
   {
     sql: 'SELECT * FROM users WHERE id = ?',
-    namedPlaceholders: false  // Use positional placeholders for this query
+    namedPlaceholders: false // Use positional placeholders for this query
   },
   [123]
 )
 ```
 
 This allows you to:
+
 - Use named placeholders in specific queries without enabling it globally
 - Mix named and positional placeholders in different queries
 - Override connection-level settings when needed
@@ -794,6 +789,7 @@ const users = await db.selectFrom('users').selectAll().where('id', '=', 123).exe
 ```
 
 **Benefits of Compatibility Layers:**
+
 - **Zero code changes** when migrating from mysql2 or pg
 - **Full ORM support** (Drizzle, Kysely)
 - **Automatic retry logic** for cluster wake-ups
