@@ -190,27 +190,27 @@ describe('type detection', () => {
         expect(getTypeHint(new Date())).toBe('TIMESTAMP')
       })
 
-      test('UUID string → UUID', () => {
-        expect(getTypeHint('550e8400-e29b-41d4-a716-446655440000')).toBe('UUID')
+      test('no hint for UUID strings (no auto-detection)', () => {
+        expect(getTypeHint('550e8400-e29b-41d4-a716-446655440000')).toBeUndefined()
       })
 
-      test('DATE string → DATE', () => {
-        expect(getTypeHint('2024-12-25')).toBe('DATE')
+      test('no hint for DATE strings (no auto-detection)', () => {
+        expect(getTypeHint('2024-12-25')).toBeUndefined()
       })
 
-      test('TIME string → TIME', () => {
-        expect(getTypeHint('14:30:45')).toBe('TIME')
-        expect(getTypeHint('14:30:45.123')).toBe('TIME')
+      test('no hint for TIME strings (no auto-detection)', () => {
+        expect(getTypeHint('14:30:45')).toBeUndefined()
+        expect(getTypeHint('14:30:45.123')).toBeUndefined()
       })
 
-      test('JSON string → JSON', () => {
-        expect(getTypeHint('{"key": "value"}')).toBe('JSON')
-        expect(getTypeHint('[1, 2, 3]')).toBe('JSON')
+      test('no hint for JSON strings (no auto-detection)', () => {
+        expect(getTypeHint('{"key": "value"}')).toBeUndefined()
+        expect(getTypeHint('[1, 2, 3]')).toBeUndefined()
       })
 
-      test('DECIMAL string → DECIMAL', () => {
-        expect(getTypeHint('123.45')).toBe('DECIMAL')
-        expect(getTypeHint('-999.9999')).toBe('DECIMAL')
+      test('no hint for DECIMAL strings (no auto-detection)', () => {
+        expect(getTypeHint('123.45')).toBeUndefined()
+        expect(getTypeHint('-999.9999')).toBeUndefined()
       })
 
       test('no hint for regular strings', () => {
@@ -234,11 +234,6 @@ describe('type detection', () => {
 
       test('no hint for Buffer', () => {
         expect(getTypeHint(Buffer.from('data'))).toBeUndefined()
-      })
-
-      test('precedence: UUID before DATE', () => {
-        // UUIDs are checked before dates to avoid false positives
-        expect(getTypeHint('550e8400-e29b-41d4-a716-446655440000')).toBe('UUID')
       })
     })
   })

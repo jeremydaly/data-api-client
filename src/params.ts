@@ -130,7 +130,7 @@ export const processParams = (
             const regex = new RegExp(':' + p.name + '\\b', 'g')
             sql = sql.replace(regex, engine === 'pg' ? `:${p.name}::${p.cast}` : `CAST(:${p.name} AS ${p.cast})`)
           }
-          acc.push(formatParam(p.name, p.value, formatOptions, engine))
+          acc.push(formatParam(p.name, p.value, formatOptions))
         } else if (row === 0) {
           const regex = new RegExp('::' + p.name + '\\b', 'g')
           // Use engine-specific identifier escaping
@@ -149,8 +149,8 @@ export const processParams = (
 }
 
 // Converts parameter to the name/value format
-export const formatParam = (n: string, v: ParameterValue, formatOptions: Required<FormatOptions>, engine?: string): FormattedParameter =>
-  formatType(n, v, getType(v), getTypeHint(v, engine), formatOptions)
+export const formatParam = (n: string, v: ParameterValue, formatOptions: Required<FormatOptions>): FormattedParameter =>
+  formatType(n, v, getType(v), getTypeHint(v), formatOptions)
 
 // Converts object params into name/value format
 export const splitParams = (p: Record<string, ParameterValue>): NamedParameter[] =>

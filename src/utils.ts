@@ -155,43 +155,16 @@ export const isJSONString = (val: string): boolean => {
 }
 
 // Hint to specify the underlying object type for data type mapping
-// Auto-detects typeHint based on value format to prevent type errors
-export const getTypeHint = (val: ParameterValue, engine?: string): string | undefined => {
+// Only adds typeHint for Date objects (converted to TIMESTAMP)
+// Other typeHints should be added via explicit cast parameter
+export const getTypeHint = (val: ParameterValue): string | undefined => {
   // Date objects → TIMESTAMP
   if (isDate(val)) {
     return 'TIMESTAMP'
   }
 
-  // Auto-detect string formats for type hints
-  if (typeof val === 'string') {
-    // UUID format (most specific, check first)
-    // Note: UUID typeHint is PostgreSQL-specific, skip for MySQL
-    if (isUUIDString(val) && engine !== 'mysql') {
-      return 'UUID'
-    }
-
-    // DATE format: YYYY-MM-DD
-    if (isDateString(val)) {
-      return 'DATE'
-    }
-
-    // TIME format: HH:MM:SS[.FFF]
-    if (isTimeString(val)) {
-      return 'TIME'
-    }
-
-    // JSON format (objects/arrays)
-    // Note: JSON typeHint is PostgreSQL-specific (JSONB), skip for MySQL
-    if (isJSONString(val) && engine !== 'mysql') {
-      return 'JSON'
-    }
-
-    // DECIMAL format (numeric with decimal point)
-    if (isDecimalString(val)) {
-      return 'DECIMAL'
-    }
-  }
-
+  // No automatic type hint detection for strings
+  // Users should use explicit cast parameter if they need typeHints
   return undefined
 }
 
