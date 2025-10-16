@@ -92,6 +92,12 @@ Supported types:
 - Example: `{ name: 'id', value: uuid, cast: 'uuid' }`
 - PostgreSQL format: `:id::uuid`
 - MySQL format: `CAST(:id AS uuid)`
+- **Automatic JSONB casting (NEW)**: Plain JavaScript objects are automatically detected and cast as `::jsonb` in PostgreSQL queries
+  - Detects plain objects (not Buffers, Dates, Arrays, or Data API objects)
+  - Automatically serializes to JSON string
+  - Appends `::jsonb` cast to parameter
+  - Adds `JSON` typeHint for Data API
+  - Explicit casts take precedence over automatic casting
 
 **Date Handling** (utils.ts, results.ts)
 - `formatOptions.deserializeDate` - Auto-parse date strings to Date objects (default: true)
@@ -401,6 +407,7 @@ float → doubleValue
 null → isNull (true)
 Date object → stringValue + typeHint: 'TIMESTAMP'
 Buffer → blobValue
+Plain JavaScript object → stringValue + typeHint: 'JSON' + auto ::jsonb cast (PostgreSQL only)
 {[supportedType]: value} → pass through
 ```
 
