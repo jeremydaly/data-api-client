@@ -654,9 +654,9 @@ describe('Kysely with PostgreSQL Compat', () => {
       .insertInto('kysely_products')
       .values({
         name: 'JSON Product',
-        price: '99.99',
+        price: kyselySql`99.99::numeric`,
         quantity: 10,
-        metadata: JSON.stringify({ color: 'blue', features: ['wireless', 'waterproof'] })
+        metadata: { color: 'blue', features: ['wireless', 'waterproof'] }
       })
       .execute()
 
@@ -725,7 +725,7 @@ describe('Kysely with PostgreSQL Compat', () => {
       .insertInto('kysely_products')
       .values({
         name: 'Increment Product',
-        price: '10.00',
+        price: kyselySql`10.00::numeric`,
         quantity: 5
       })
       .execute()

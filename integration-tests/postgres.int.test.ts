@@ -802,14 +802,14 @@ describe('PostgreSQL Integration Tests', () => {
 
   describe('PostgreSQL Date and Time Types', () => {
     test('should handle DATE values', async () => {
-      await client.query('INSERT INTO type_tests (date_col) VALUES (:value)', { value: '2024-12-25' })
+      await client.query('INSERT INTO type_tests (date_col) VALUES (:value::date)', { value: '2024-12-25' })
 
       const result = await client.query('SELECT date_col FROM type_tests')
       expect(result.records![0].date_col).toBeDefined()
     })
 
     test('should handle TIME values', async () => {
-      await client.query('INSERT INTO type_tests (time_col) VALUES (:value)', { value: '14:30:45' })
+      await client.query('INSERT INTO type_tests (time_col) VALUES (:value::time)', { value: '14:30:45' })
 
       const result = await client.query('SELECT time_col FROM type_tests')
       expect(result.records![0].time_col).toBeDefined()
@@ -900,6 +900,32 @@ describe('PostgreSQL Integration Tests', () => {
       const result = await client.query('SELECT jsonb_col FROM type_tests')
       const parsed = JSON.parse(result.records![0].jsonb_col)
       expect(parsed).toEqual(complexJson)
+    })
+
+    test('should automatically cast plain JavaScript objects as JSONB', async () => {
+      // Test automatic JSONB casting for plain objects
+      const metadata = { color: 'green', features: ['auto-cast', 'test'], score: 95.5 }
+
+      await client.query('INSERT INTO type_tests (jsonb_col) VALUES (:value)', {
+        value: metadata
+      })
+
+      const result = await client.query('SELECT jsonb_col FROM type_tests')
+      const parsed = JSON.parse(result.records![0].jsonb_col)
+      expect(parsed).toEqual(metadata)
+    })
+
+    test('should provide JSON typeHint for plain JavaScript objects', async () => {
+      // Test that plain objects get JSON typeHint for Data API
+      const data = { test: 'typeHint', nested: { value: 123 } }
+
+      await client.query('INSERT INTO type_tests (jsonb_col) VALUES (:data)', {
+        data
+      })
+
+      const result = await client.query('SELECT jsonb_col FROM type_tests')
+      const parsed = JSON.parse(result.records![0].jsonb_col)
+      expect(parsed).toEqual(data)
     })
   })
 
@@ -1026,7 +1052,7 @@ describe('PostgreSQL Integration Tests', () => {
           bytea_col, jsonb_col, uuid_col, inet_col, date_col
         ) VALUES (
           :smallint_col, :int_col, :decimal_col, :text_col, :bool_col,
-          :bytea_col, :jsonb_col, :uuid_col, :inet_col::inet, :date_col
+          :bytea_col, :jsonb_col::jsonb, :uuid_col::uuid, :inet_col::inet, :date_col::date
         )`,
         params
       )
@@ -1124,8 +1150,7 @@ describe('PostgreSQL Integration Tests', () => {
       expect(result.records![0].bigint_array).toEqual([1000000, 2000000])
     })
 
-    // TODO: Fix empty array handling (investigate further)
-    test.fails('should handle empty integer arrays', async () => {
+    test('should handle empty integer arrays', async () => {
       await client.query('INSERT INTO array_tests (int_array) VALUES (:value::int[])', { value: '{}' })
 
       const result = await client.query('SELECT int_array FROM array_tests')
@@ -1315,7 +1340,7 @@ describe('PostgreSQL Integration Tests', () => {
     })
 
     describe('Array Types - Edge Cases', () => {
-      test.fails('should handle empty integer arrays', async () => {
+      test('should handle empty integer arrays', async () => {
         await client.query('INSERT INTO array_tests (int_array) VALUES (:value::int[])', { value: '{}' })
 
         const result = await client.query('SELECT int_array FROM array_tests')

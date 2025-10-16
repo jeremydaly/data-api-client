@@ -254,7 +254,10 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
   })
 
   test('should handle NOT conditions', async () => {
-    const result = await db.select().from(users).where(not(eq(users.active, false)))
+    const result = await db
+      .select()
+      .from(users)
+      .where(not(eq(users.active, false)))
 
     expect(result.every((u) => u.active !== false)).toBe(true)
   })
@@ -297,10 +300,16 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
       { name: 'InArray3', email: 'in3@example.com', age: 30 }
     ])
 
-    const inResult = await db.select().from(users).where(inArray(users.age, [10, 20, 30]))
+    const inResult = await db
+      .select()
+      .from(users)
+      .where(inArray(users.age, [10, 20, 30]))
     expect(inResult.some((u) => [10, 20, 30].includes(u.age as number))).toBe(true)
 
-    const notInResult = await db.select().from(users).where(notInArray(users.age, [10, 20]))
+    const notInResult = await db
+      .select()
+      .from(users)
+      .where(notInArray(users.age, [10, 20]))
     expect(notInResult.every((u) => u.age !== 10 && u.age !== 20)).toBe(true)
   })
 
@@ -459,7 +468,10 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
       { name: 'SubQuery2', email: 'sub2@example.com', age: 70 }
     ])
 
-    const avgAge = db.select({ value: avg(users.age).as('avg_age') }).from(users).as('avgAge')
+    const avgAge = db
+      .select({ value: avg(users.age).as('avg_age') })
+      .from(users)
+      .as('avgAge')
 
     const result = await db
       .select()
@@ -509,11 +521,7 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
       age: 50
     })
 
-    const result = await db
-      .update(users)
-      .set({ age: 51 })
-      .where(eq(users.name, 'UpdateReturning'))
-      .returning()
+    const result = await db.update(users).set({ age: 51 }).where(eq(users.name, 'UpdateReturning')).returning()
 
     expect(result.length).toBe(1)
     expect(result[0].age).toBe(51)
@@ -534,11 +542,13 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
 
   // JSONB and advanced types
   test('should handle JSONB data type', async () => {
+    // Drizzle serializes JSONB to JSON string, so we need explicit cast
+    const metadata = { color: 'blue', features: ['wireless', 'waterproof'] }
     await db.insert(products).values({
       name: 'JSON Product',
-      price: '99.99',
+      price: drizzleSql`99.99::numeric`,
       quantity: 10,
-      metadata: { color: 'blue', features: ['wireless', 'waterproof'] }
+      metadata: drizzleSql`${JSON.stringify(metadata)}::jsonb`
     })
 
     const result = await db.select().from(products).where(eq(products.name, 'JSON Product'))
@@ -551,9 +561,9 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
 
     await db.insert(products).values({
       name: 'UUID Product',
-      price: '49.99',
+      price: drizzleSql`49.99::numeric`,
       quantity: 5,
-      productUuid: testUuid
+      productUuid: drizzleSql`${testUuid}::uuid`
     })
 
     const result = await db.select().from(products).where(eq(products.name, 'UUID Product'))
@@ -564,7 +574,7 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
   test('should handle NUMERIC/DECIMAL precision', async () => {
     await db.insert(products).values({
       name: 'Precision Product',
-      price: '123.45',
+      price: drizzleSql`123.45::numeric`,
       quantity: 1
     })
 
@@ -705,9 +715,7 @@ describe('Drizzle ORM with PostgreSQL Compat', () => {
 
   test('should handle parameterized raw SQL', async () => {
     const searchName = 'Alice'
-    const result = await db.execute(
-      drizzleSql`SELECT * FROM drizzle_users WHERE name = ${searchName} LIMIT 5`
-    )
+    const result = await db.execute(drizzleSql`SELECT * FROM drizzle_users WHERE name = ${searchName} LIMIT 5`)
 
     expect(result.rows).toBeDefined()
   })
