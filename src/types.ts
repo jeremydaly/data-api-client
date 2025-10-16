@@ -96,6 +96,7 @@ export type ParameterValue =
   | Date
   | Buffer
   | { [key in SupportedType]?: any }
+  | { [key: string]: any } // Plain JavaScript objects (for JSONB auto-casting)
 
 // Named parameter format
 export interface NamedParameter {

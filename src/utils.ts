@@ -118,6 +118,13 @@ export const getType = (val: ParameterValue): SupportedType | null | undefined =
       Object.keys(val).length === 1 &&
       supportedTypes.includes(Object.keys(val)[0] as SupportedType)
     ? null
+    : // Plain JavaScript objects → convert to JSON string
+    typeof val === 'object' &&
+      val !== null &&
+      !Buffer.isBuffer(val) &&
+      !isDate(val) &&
+      !Array.isArray(val)
+    ? 'stringValue'
     : undefined
 
 // Helper functions to detect type hint formats
@@ -155,12 +162,25 @@ export const isJSONString = (val: string): boolean => {
 }
 
 // Hint to specify the underlying object type for data type mapping
-// Only adds typeHint for Date objects (converted to TIMESTAMP)
+// Adds typeHint for Date objects (converted to TIMESTAMP) and plain JavaScript objects (JSONB)
 // Other typeHints should be added via explicit cast parameter
 export const getTypeHint = (val: ParameterValue): string | undefined => {
   // Date objects → TIMESTAMP
   if (isDate(val)) {
     return 'TIMESTAMP'
+  }
+
+  // Plain JavaScript objects → JSON (typeHint for PostgreSQL JSONB/JSON columns)
+  // Detect objects that are not Buffers, Dates, Arrays, or already-formatted Data API objects
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    !Buffer.isBuffer(val) &&
+    !isDate(val) &&
+    !Array.isArray(val) &&
+    !(Object.keys(val).length === 1 && supportedTypes.includes(Object.keys(val)[0] as SupportedType))
+  ) {
+    return 'JSON'
   }
 
   // No automatic type hint detection for strings
