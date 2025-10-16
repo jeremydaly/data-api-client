@@ -359,11 +359,11 @@ describe('parameter processing', () => {
         { deserializeDate: false, treatAsLocalDate: false }
       )
       expect(escapedSql).toBe('INSERT INTO users(id, name, meta) VALUES(:id::uuid, :name, :meta::jsonb)')
-      // Auto-detection adds typeHint for UUID and JSON formats in PostgreSQL
+      // No automatic typeHints - only added via explicit cast parameter
       expect(processedParams).toEqual([
-        { name: 'id', typeHint: 'UUID', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
+        { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
         { name: 'name', value: { stringValue: 'Test' } },
-        { name: 'meta', typeHint: 'JSON', value: { stringValue: '{"extra": true}' } }
+        { name: 'meta', value: { stringValue: '{"extra": true}' } }
       ])
     })
 
@@ -404,6 +404,21 @@ describe('parameter processing', () => {
       expect(processedParams).toEqual([
         { name: 'id', value: { stringValue: '0bb99248-2e7d-4007-a4b2-579b00649ce1' } },
         { name: 'name', value: { stringValue: 'Test' } }
+      ])
+    })
+
+    test('UUID in VARCHAR field (issue #144) - no auto-detection', async () => {
+      let { processedParams, escapedSql } = processParams(
+        'pg',
+        'SELECT * FROM users WHERE reference_id = :referenceId',
+        { referenceId: { type: 'n_ph' } },
+        [{ name: 'referenceId', value: '550e8400-e29b-41d4-a716-446655440000' }],
+        { deserializeDate: false, treatAsLocalDate: false }
+      )
+      expect(escapedSql).toBe('SELECT * FROM users WHERE reference_id = :referenceId')
+      // UUID strings are treated as regular strings (no automatic typeHint)
+      expect(processedParams).toEqual([
+        { name: 'referenceId', value: { stringValue: '550e8400-e29b-41d4-a716-446655440000' } }
       ])
     })
   })

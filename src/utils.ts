@@ -118,6 +118,13 @@ export const getType = (val: ParameterValue): SupportedType | null | undefined =
       Object.keys(val).length === 1 &&
       supportedTypes.includes(Object.keys(val)[0] as SupportedType)
     ? null
+    : // Plain JavaScript objects → convert to JSON string
+    typeof val === 'object' &&
+      val !== null &&
+      !Buffer.isBuffer(val) &&
+      !isDate(val) &&
+      !Array.isArray(val)
+    ? 'stringValue'
     : undefined
 
 // Helper functions to detect type hint formats
@@ -155,43 +162,29 @@ export const isJSONString = (val: string): boolean => {
 }
 
 // Hint to specify the underlying object type for data type mapping
-// Auto-detects typeHint based on value format to prevent type errors
-export const getTypeHint = (val: ParameterValue, engine?: string): string | undefined => {
+// Adds typeHint for Date objects (converted to TIMESTAMP) and plain JavaScript objects (JSONB)
+// Other typeHints should be added via explicit cast parameter
+export const getTypeHint = (val: ParameterValue): string | undefined => {
   // Date objects → TIMESTAMP
   if (isDate(val)) {
     return 'TIMESTAMP'
   }
 
-  // Auto-detect string formats for type hints
-  if (typeof val === 'string') {
-    // UUID format (most specific, check first)
-    // Note: UUID typeHint is PostgreSQL-specific, skip for MySQL
-    if (isUUIDString(val) && engine !== 'mysql') {
-      return 'UUID'
-    }
-
-    // DATE format: YYYY-MM-DD
-    if (isDateString(val)) {
-      return 'DATE'
-    }
-
-    // TIME format: HH:MM:SS[.FFF]
-    if (isTimeString(val)) {
-      return 'TIME'
-    }
-
-    // JSON format (objects/arrays)
-    // Note: JSON typeHint is PostgreSQL-specific (JSONB), skip for MySQL
-    if (isJSONString(val) && engine !== 'mysql') {
-      return 'JSON'
-    }
-
-    // DECIMAL format (numeric with decimal point)
-    if (isDecimalString(val)) {
-      return 'DECIMAL'
-    }
+  // Plain JavaScript objects → JSON (typeHint for PostgreSQL JSONB/JSON columns)
+  // Detect objects that are not Buffers, Dates, Arrays, or already-formatted Data API objects
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    !Buffer.isBuffer(val) &&
+    !isDate(val) &&
+    !Array.isArray(val) &&
+    !(Object.keys(val).length === 1 && supportedTypes.includes(Object.keys(val)[0] as SupportedType))
+  ) {
+    return 'JSON'
   }
 
+  // No automatic type hint detection for strings
+  // Users should use explicit cast parameter if they need typeHints
   return undefined
 }
 

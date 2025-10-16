@@ -50,17 +50,16 @@ export interface PgCompatClient extends EventEmitter {
   ): Promise<PgQueryResult<R>>
   query<R extends any[] = any[]>(
     queryConfig: { text: string; values?: any[]; rowMode: 'array' },
-    callback: (err: Error, result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }) => void
+    callback: (
+      err: Error,
+      result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }
+    ) => void
   ): void
   query<R = any>(
     queryTextOrConfig: string | { text: string; values?: any[] },
     callback: (err: Error, result: PgQueryResult<R>) => void
   ): void
-  query<R = any>(
-    queryText: string,
-    values: any[],
-    callback: (err: Error, result: PgQueryResult<R>) => void
-  ): void
+  query<R = any>(queryText: string, values: any[], callback: (err: Error, result: PgQueryResult<R>) => void): void
 
   release(err?: Error | boolean): void
 
@@ -111,17 +110,16 @@ export interface PgCompatPool extends EventEmitter {
   ): Promise<PgQueryResult<R>>
   query<R extends any[] = any[]>(
     queryConfig: { text: string; values?: any[]; rowMode: 'array' },
-    callback: (err: Error, result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }) => void
+    callback: (
+      err: Error,
+      result: { rows: R[]; rowCount: number; command: string; fields: Array<{ name: string }> }
+    ) => void
   ): void
   query<R = any>(
     queryTextOrConfig: string | { text: string; values?: any[] },
     callback: (err: Error, result: PgQueryResult<R>) => void
   ): void
-  query<R = any>(
-    queryText: string,
-    values: any[],
-    callback: (err: Error, result: PgQueryResult<R>) => void
-  ): void
+  query<R = any>(queryText: string, values: any[], callback: (err: Error, result: PgQueryResult<R>) => void): void
 
   // Event emitter methods
   on(event: 'error', listener: (err: PostgresError) => void): this
@@ -153,7 +151,18 @@ function convertPgPlaceholders(sql: string, params: any[] = []): { sql: string; 
  */
 function inferCommand(sql: string): string {
   const match = sql.trim().split(/\s+/)[0]?.toUpperCase()
-  const knownCommands = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TRUNCATE', 'GRANT', 'REVOKE']
+  const knownCommands = [
+    'SELECT',
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'TRUNCATE',
+    'GRANT',
+    'REVOKE'
+  ]
   return knownCommands.includes(match) ? match : 'QUERY'
 }
 
@@ -232,10 +241,7 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
   let transactionId: string | undefined
 
   // Helper to execute query logic
-  async function executeQuery<R = any>(
-    sqlOrConfig: string | PgQueryConfig,
-    params?: any[]
-  ): Promise<PgQueryResult<R>> {
+  async function executeQuery<R = any>(sqlOrConfig: string | PgQueryConfig, params?: any[]): Promise<PgQueryResult<R>> {
     // Handle both query(sql, params) and query({ text, values }) formats
     let sql: string
     let values: any[] = []
@@ -248,7 +254,7 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
       sql = sqlOrConfig.text
       // If params are passed as second argument, they override config.values
       // This is how Drizzle calls it: query({name, text}, values)
-      values = params !== undefined ? params : (sqlOrConfig.values || [])
+      values = params !== undefined ? params : sqlOrConfig.values || []
       rowMode = sqlOrConfig.rowMode
       // IMPORTANT: We intentionally ignore sqlOrConfig.name
       // The RDS Data API interprets the 'name' field as a request for server-side
@@ -471,7 +477,7 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
       sql = sqlOrConfig.text
       // If params are passed as second argument, they override config.values
       // This is how Drizzle calls it: query({name, text}, values)
-      values = params !== undefined ? params : (sqlOrConfig.values || [])
+      values = params !== undefined ? params : sqlOrConfig.values || []
       rowMode = sqlOrConfig.rowMode
       // IMPORTANT: We intentionally ignore sqlOrConfig.name
       // The RDS Data API interprets the 'name' field as a request for server-side

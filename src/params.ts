@@ -16,7 +16,16 @@ import type {
   FormatOptions,
   SupportedType
 } from './types'
-import { error, getType, getTypeHint, isDate, formatToTimeStamp } from './utils'
+import { error, getType, getTypeHint, isDate, formatToTimeStamp, supportedTypes } from './utils'
+
+// Helper to detect plain JavaScript objects (not Buffers, Dates, Arrays, or Data API objects)
+const isPlainObject = (val: any): boolean =>
+  typeof val === 'object' &&
+  val !== null &&
+  !Buffer.isBuffer(val) &&
+  !(val instanceof Date) &&
+  !Array.isArray(val) &&
+  !(Object.keys(val).length === 1 && supportedTypes.includes(Object.keys(val)[0] as SupportedType))
 
 // Parse the parameters from provided arguments
 export const parseParams = (args: any[]): Parameters[] =>
@@ -126,11 +135,17 @@ export const processParams = (
         return acc.concat([result.processedParams as FormattedParameter[]])
       } else if (sqlParams[p.name]) {
         if (sqlParams[p.name].type === 'n_ph') {
+          // Handle explicit cast parameter
           if (p.cast) {
             const regex = new RegExp(':' + p.name + '\\b', 'g')
             sql = sql.replace(regex, engine === 'pg' ? `:${p.name}::${p.cast}` : `CAST(:${p.name} AS ${p.cast})`)
           }
-          acc.push(formatParam(p.name, p.value, formatOptions, engine))
+          // Automatic cast for plain JavaScript objects to jsonb in PostgreSQL
+          else if (engine === 'pg' && isPlainObject(p.value)) {
+            const regex = new RegExp(':' + p.name + '\\b', 'g')
+            sql = sql.replace(regex, `:${p.name}::jsonb`)
+          }
+          acc.push(formatParam(p.name, p.value, formatOptions))
         } else if (row === 0) {
           const regex = new RegExp('::' + p.name + '\\b', 'g')
           // Use engine-specific identifier escaping
@@ -149,8 +164,8 @@ export const processParams = (
 }
 
 // Converts parameter to the name/value format
-export const formatParam = (n: string, v: ParameterValue, formatOptions: Required<FormatOptions>, engine?: string): FormattedParameter =>
-  formatType(n, v, getType(v), getTypeHint(v, engine), formatOptions)
+export const formatParam = (n: string, v: ParameterValue, formatOptions: Required<FormatOptions>): FormattedParameter =>
+  formatType(n, v, getType(v), getTypeHint(v), formatOptions)
 
 // Converts object params into name/value format
 export const splitParams = (p: Record<string, ParameterValue>): NamedParameter[] =>
@@ -175,6 +190,8 @@ export const formatType = (
                 ? true
                 : isDate(value)
                 ? formatToTimeStamp(value, formatOptions && formatOptions.treatAsLocalDate)
+                : isPlainObject(value)
+                ? JSON.stringify(value)
                 : value
           }
         }

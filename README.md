@@ -106,11 +106,11 @@ let remove = await data.query(
   { name: 'Jan' } // Sorry Jan :(
 )
 
-// PostgreSQL with type casting and JSONB
+// PostgreSQL with automatic JSONB casting for plain objects
 let pgExample = await data.query(`INSERT INTO users (id, email, metadata) VALUES(:id, :email, :metadata)`, [
   { name: 'id', value: '550e8400-e29b-41d4-a716-446655440000', cast: 'uuid' },
   { name: 'email', value: 'user@example.com' },
-  { name: 'metadata', value: JSON.stringify({ role: 'admin' }), cast: 'jsonb' }
+  { name: 'metadata', value: { role: 'admin', permissions: ['read', 'write'] } } // Automatically cast as JSONB!
 ])
 
 // PostgreSQL array result (automatically converted to native JavaScript array)
@@ -373,17 +373,63 @@ You'll notice that we leave the _named parameters_ alone. Anything that Data API
 
 The Aurora Data API can sometimes give you trouble with certain data types, such as uuid or jsonb in PostgreSQL, unless you explicitly cast them. While you can certainly do this manually in your SQL string using PostgreSQL's `::` cast syntax, the Data API Client offers an easy way to handle this for you using the parameter `cast` property.
 
-**PostgreSQL inline casting** (recommended):
+#### Automatic JSONB Type Casting (PostgreSQL)
+
+**New in v2.x:** The Data API Client now **automatically detects and casts plain JavaScript objects as JSONB** in PostgreSQL queries. This eliminates the need for manual `JSON.stringify()` or explicit `::jsonb` casts in most cases:
 
 ```javascript
-const result = await data.query('INSERT INTO users(id, email, metadata) VALUES(:id, :email, :metadata::jsonb)', {
-  id: newUserId, // will be cast as string by default
-  email: email,
-  metadata: JSON.stringify(userMetadata) // cast to jsonb via ::jsonb in SQL
+// Plain JavaScript objects are automatically cast as JSONB
+const metadata = { role: 'admin', permissions: ['read', 'write'], score: 95.5 }
+
+await data.query('INSERT INTO users (email, metadata) VALUES (:email, :metadata)', {
+  email: 'user@example.com',
+  metadata: metadata // Automatically serialized and cast as ::jsonb
+})
+
+// Works with nested objects too
+const complexData = {
+  user: { name: 'Alice', age: 30 },
+  tags: ['admin', 'editor'],
+  settings: { theme: 'dark', notifications: true }
+}
+
+await data.query('INSERT INTO products (name, data) VALUES (:name, :data)', {
+  name: 'Product A',
+  data: complexData // Automatically handled
 })
 ```
 
-**Parameter-based casting** (alternative approach):
+**How it works:**
+
+- Plain JavaScript objects (not Buffers, Dates, Arrays, or Data API objects) are automatically detected
+- The object is serialized to a JSON string
+- A `::jsonb` cast is automatically appended to the parameter in PostgreSQL queries
+- A `JSON` typeHint is provided to the Data API for proper handling
+
+**When automatic casting applies:**
+
+- ✅ Plain objects: `{ key: 'value' }`
+- ✅ Nested objects: `{ user: { name: 'Alice' } }`
+- ❌ Buffers: `Buffer.from('data')`
+- ❌ Dates: `new Date()`
+- ❌ Arrays: `[1, 2, 3]`
+- ❌ Already-formatted Data API objects: `{ stringValue: 'text' }`
+
+**Explicit casting still supported:**
+
+You can still use explicit casts when needed (e.g., for UUID, custom types, or to override automatic behavior):
+
+**PostgreSQL inline casting:**
+
+```javascript
+const result = await data.query('INSERT INTO users(id, email, metadata) VALUES(:id, :email, :metadata::jsonb)', {
+  id: newUserId,
+  email: email,
+  metadata: JSON.stringify(userMetadata) // explicit ::jsonb in SQL
+})
+```
+
+**Parameter-based casting:**
 
 ```javascript
 const result = await data.query(
@@ -411,7 +457,7 @@ const result = await data.query(
 )
 ```
 
-Both approaches produce the same result, but inline casting is generally cleaner for simple cases.
+**Note:** Explicit casts (inline `::type` or parameter `cast` property) always take precedence over automatic casting.
 
 ### Batch Queries
 
@@ -932,15 +978,37 @@ await data.query('INSERT INTO files (content) VALUES (:content)', { content: bin
 
 ### JSON and JSONB
 
+**Automatic JSONB Casting (New in v2.x):**
+
+The Data API Client now automatically detects and casts plain JavaScript objects as JSONB in PostgreSQL:
+
 ```javascript
+// Automatic JSONB casting - no manual JSON.stringify() needed!
 const metadata = { role: 'admin', permissions: ['read', 'write'] }
-await data.query('INSERT INTO users (metadata) VALUES (:metadata::jsonb)', {
-  metadata: JSON.stringify(metadata)
+await data.query('INSERT INTO users (metadata) VALUES (:metadata)', {
+  metadata: metadata // Automatically serialized and cast as ::jsonb
+})
+
+// Works with nested objects
+const complexData = { user: { name: 'Alice' }, settings: { theme: 'dark' } }
+await data.query('INSERT INTO users (data) VALUES (:data)', {
+  data: complexData // Automatically handled
 })
 
 // Query result
 let result = await data.query('SELECT metadata FROM users WHERE id = :id', { id: 1 })
 const parsed = JSON.parse(result.records[0].metadata)
+```
+
+**Manual casting (still supported):**
+
+You can still use explicit casting when needed:
+
+```javascript
+const metadata = { role: 'admin', permissions: ['read', 'write'] }
+await data.query('INSERT INTO users (metadata) VALUES (:metadata::jsonb)', {
+  metadata: JSON.stringify(metadata) // Manual approach
+})
 ```
 
 ### UUID
