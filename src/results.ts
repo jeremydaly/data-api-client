@@ -153,7 +153,7 @@ export const formatRecordValue = (
       value,
       (formatOptions && formatOptions.treatAsLocalDate) || typeName === 'TIMESTAMP WITH TIME ZONE'
     )
-  } else if (typeName === 'JSON') {
+  } else if (typeName && ['JSON', 'JSONB'].includes(typeName.toUpperCase())) {
     return JSON.parse(value)
   } else if (typeName === 'YEAR') {
     // MySQL YEAR type - convert string to integer

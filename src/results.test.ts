@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { formatRecords, formatUpdateResults, formatResults } from './results'
+import { formatRecords, formatRecordValue, formatUpdateResults, formatResults } from './results'
 
 describe('formatRecords', () => {
   test('with columnMetadata', async () => {
@@ -91,6 +91,30 @@ describe('formatUpdateResults', () => {
     const updateResults = [{ generatedFields: [] }]
     let result = formatUpdateResults(updateResults)
     expect(result).toEqual([{}])
+  })
+})
+
+describe('formatRecordValue - JSON/JSONB parsing', () => {
+  const formatOptions = { deserializeDate: false, treatAsLocalDate: false }
+
+  test('parses typeName "JSON" (MySQL)', () => {
+    const result = formatRecordValue('{"key":"value"}', 'JSON', formatOptions)
+    expect(result).toEqual({ key: 'value' })
+  })
+
+  test('parses typeName "json" (PostgreSQL json)', () => {
+    const result = formatRecordValue('{"key":"value"}', 'json', formatOptions)
+    expect(result).toEqual({ key: 'value' })
+  })
+
+  test('parses typeName "jsonb" (PostgreSQL jsonb)', () => {
+    const result = formatRecordValue('{"key":"value","nested":{"a":1}}', 'jsonb', formatOptions)
+    expect(result).toEqual({ key: 'value', nested: { a: 1 } })
+  })
+
+  test('parses jsonb array values', () => {
+    const result = formatRecordValue('[1,2,3]', 'jsonb', formatOptions)
+    expect(result).toEqual([1, 2, 3])
   })
 })
 
