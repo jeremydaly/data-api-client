@@ -163,8 +163,30 @@ export const formatRecordValue = (
   }
 }
 
-// Format updateResults and extract insertIds
+// Extract the raw value from a Data API Field object
+const extractFieldValue = (field: Field): any => {
+  if (field.isNull) return null
+  if (field.longValue !== undefined && field.longValue !== null) return field.longValue
+  if (field.stringValue !== undefined && field.stringValue !== null) return field.stringValue
+  if (field.doubleValue !== undefined && field.doubleValue !== null) return field.doubleValue
+  if (field.booleanValue !== undefined && field.booleanValue !== null) return field.booleanValue
+  if (field.blobValue !== undefined && field.blobValue !== null) return field.blobValue
+  if (field.arrayValue !== undefined && field.arrayValue !== null) return flattenArrayValue(field.arrayValue)
+  return null
+}
+
+// Format updateResults and extract insertIds and generatedFields
 export const formatUpdateResults = (res: { generatedFields?: Field[] }[]): UpdateResult[] =>
   res.map((x) => {
-    return x.generatedFields && x.generatedFields.length > 0 ? { insertId: x.generatedFields[0].longValue } : {}
+    if (!x.generatedFields || x.generatedFields.length === 0) return {}
+    const result: UpdateResult = {}
+    // Preserve backwards-compatible insertId from first longValue field
+    if (x.generatedFields[0].longValue !== undefined && x.generatedFields[0].longValue !== null) {
+      result.insertId = x.generatedFields[0].longValue
+    }
+    // Include all generated field values for RETURNING clause support
+    if (x.generatedFields.length > 1 || !result.insertId) {
+      result.generatedFields = x.generatedFields.map(extractFieldValue)
+    }
+    return result
   })

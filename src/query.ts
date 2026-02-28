@@ -53,28 +53,63 @@ export const query = async function (
   // Determine if this is a batch request
   const isBatch = processedParams.length > 0 && Array.isArray(processedParams[0])
 
+  // Detect RETURNING clause in SQL (PostgreSQL)
+  const hasReturning = /\bRETURNING\b/i.test(escapedSql)
+
   // Create/format the parameters
-  const params: any = Object.assign(
+  const baseParams: any = Object.assign(
     prepareParams(config, args),
     {
       database: parseDatabase(config, args), // add database
       sql: escapedSql // add escaped sql statement
     },
+    // If a transactionId is passed, overwrite any manual input
+    config.transactionId ? { transactionId: config.transactionId } : {}
+  ) // end baseParams
+
+  const params: any = Object.assign(
+    {},
+    baseParams,
     // Only include parameters if they exist
     processedParams.length > 0
       ? // Batch statements require parameterSets instead of parameters
-        { [isBatch ? 'parameterSets' : 'parameters']: processedParams }
+        { [isBatch && !hasReturning ? 'parameterSets' : 'parameters']: processedParams }
       : {},
-    // Force meta data if set and not a batch
-    hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {},
-    // If a transactionId is passed, overwrite any manual input
-    config.transactionId ? { transactionId: config.transactionId } : {}
+    // Force meta data if set and not a batch (BatchExecuteStatement doesn't support it)
+    hydrateColumnNames && !isBatch ? { includeResultMetadata: true } : {}
   ) // end params
 
   try {
     // attempt to run the query
     // console.log(`Executing ${isBatch ? 'batch ' : ''}query: `, params)
     // console.log(`Query parameters: `, JSON.stringify(params.parameters ?? params.parameterSets, null, 2))
+
+    // For batch queries with RETURNING, execute each parameter set individually
+    // because BatchExecuteStatement does not return RETURNING clause values
+    if (isBatch && hasReturning) {
+      const results: QueryResult[] = await Promise.all(
+        (processedParams as any[][]).map((paramSet) =>
+          withRetry(
+            () =>
+              config.RDS.send(
+                new ExecuteStatementCommand(
+                  Object.assign({}, baseParams, { parameters: paramSet }, hydrateColumnNames ? { includeResultMetadata: true } : {})
+                )
+              ),
+            config.retryOptions
+          ).then((result) => formatResults(result, hydrateColumnNames, args[0].includeResultMetadata === true, formatOptions))
+        )
+      )
+
+      // Merge individual results into a single response with records array
+      const allRecords = results.flatMap((r) => r.records || [])
+      return Object.assign(
+        allRecords.length > 0 ? { records: allRecords } : {},
+        args[0].includeResultMetadata === true && results[0]?.columnMetadata
+          ? { columnMetadata: results[0].columnMetadata }
+          : {}
+      )
+    }
 
     // Capture the result for debugging
     const result: ExecuteStatementCommandOutput | BatchExecuteStatementCommandOutput = await withRetry(
