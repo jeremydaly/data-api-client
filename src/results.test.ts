@@ -1,3 +1,4 @@
+import { describe, test, expect } from 'vitest'
 import { formatRecords, formatUpdateResults, formatResults } from './results'
 
 describe('formatRecords', () => {
@@ -45,6 +46,51 @@ describe('formatUpdateResults', () => {
     let { updateResults } = require('#fixtures/sample-batch-update-response.json')
     let result = formatUpdateResults(updateResults)
     expect(result).toEqual([{}, {}])
+  })
+
+  test('with multiple generatedFields (RETURNING clause)', async () => {
+    const updateResults = [
+      {
+        generatedFields: [{ longValue: 1 }, { stringValue: 'Alice' }, { stringValue: 'alice@example.com' }]
+      },
+      {
+        generatedFields: [{ longValue: 2 }, { stringValue: 'Bob' }, { stringValue: 'bob@example.com' }]
+      }
+    ]
+    let result = formatUpdateResults(updateResults)
+    expect(result).toEqual([
+      { insertId: 1, generatedFields: [1, 'Alice', 'alice@example.com'] },
+      { insertId: 2, generatedFields: [2, 'Bob', 'bob@example.com'] }
+    ])
+  })
+
+  test('with non-integer generatedFields (RETURNING string columns)', async () => {
+    const updateResults = [
+      {
+        generatedFields: [{ stringValue: 'abc-uuid-123' }]
+      },
+      {
+        generatedFields: [{ stringValue: 'def-uuid-456' }]
+      }
+    ]
+    let result = formatUpdateResults(updateResults)
+    expect(result).toEqual([{ generatedFields: ['abc-uuid-123'] }, { generatedFields: ['def-uuid-456'] }])
+  })
+
+  test('with mixed value types in generatedFields', async () => {
+    const updateResults = [
+      {
+        generatedFields: [{ longValue: 42 }, { doubleValue: 3.14 }, { booleanValue: true }, { isNull: true }]
+      }
+    ]
+    let result = formatUpdateResults(updateResults)
+    expect(result).toEqual([{ insertId: 42, generatedFields: [42, 3.14, true, null] }])
+  })
+
+  test('with empty generatedFields array', async () => {
+    const updateResults = [{ generatedFields: [] }]
+    let result = formatUpdateResults(updateResults)
+    expect(result).toEqual([{}])
   })
 })
 

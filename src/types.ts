@@ -162,6 +162,7 @@ export interface QueryResult<T = any> {
 // Update result for batch operations
 export interface UpdateResult {
   insertId?: number
+  generatedFields?: any[]
 }
 
 // Transaction object

@@ -264,8 +264,20 @@ describe('PostgreSQL Integration Tests', () => {
         users as unknown as Parameters[]
       )
 
-      expect(result.updateResults).toBeDefined()
-      expect(result.updateResults).toHaveLength(users.length)
+      // Batch with RETURNING should return records (not updateResults)
+      expect(result.records).toBeDefined()
+      expect(result.records).toHaveLength(users.length)
+
+      // Each record should have a valid id from the RETURNING clause
+      for (const record of result.records!) {
+        expect(record.id).toBeDefined()
+        expect(typeof record.id).toBe('number')
+        expect(record.id).toBeGreaterThan(0)
+      }
+
+      // Verify distinct ids were returned
+      const ids = result.records!.map((r: any) => r.id)
+      expect(new Set(ids).size).toBe(users.length)
 
       const selectResult = await client.query('SELECT COUNT(*) as count FROM users')
       expect(selectResult.records![0].count).toBe(users.length)
