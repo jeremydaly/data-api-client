@@ -629,8 +629,7 @@ describe('PostgreSQL Integration Tests', () => {
 
       const result = await client.query('SELECT metadata FROM products WHERE name = :name', { name: 'JSON Test' })
 
-      const metadata = JSON.parse(result.records![0].metadata)
-      expect(metadata).toEqual({ key: 'value', nested: { data: 123 } })
+      expect(result.records![0].metadata).toEqual({ key: 'value', nested: { data: 123 } })
     })
 
     test('should handle TIMESTAMP values', async () => {
@@ -709,7 +708,7 @@ describe('PostgreSQL Integration Tests', () => {
         name: 'Cast Test Product'
       })
 
-      expect(JSON.parse(result.records![0].metadata)).toEqual(metadata)
+      expect(result.records![0].metadata).toEqual(metadata)
     })
   })
 
@@ -872,8 +871,7 @@ describe('PostgreSQL Integration Tests', () => {
       await client.query('INSERT INTO type_tests (json_col) VALUES (:value::json)', { value: JSON.stringify(jsonData) })
 
       const result = await client.query('SELECT json_col FROM type_tests')
-      const parsed = JSON.parse(result.records![0].json_col)
-      expect(parsed).toEqual(jsonData)
+      expect(result.records![0].json_col).toEqual(jsonData)
     })
 
     test('should handle JSONB values', async () => {
@@ -883,8 +881,7 @@ describe('PostgreSQL Integration Tests', () => {
       })
 
       const result = await client.query('SELECT jsonb_col FROM type_tests')
-      const parsed = JSON.parse(result.records![0].jsonb_col)
-      expect(parsed).toEqual(jsonbData)
+      expect(result.records![0].jsonb_col).toEqual(jsonbData)
     })
 
     test('should handle nested JSON structures', async () => {
@@ -910,8 +907,7 @@ describe('PostgreSQL Integration Tests', () => {
       })
 
       const result = await client.query('SELECT jsonb_col FROM type_tests')
-      const parsed = JSON.parse(result.records![0].jsonb_col)
-      expect(parsed).toEqual(complexJson)
+      expect(result.records![0].jsonb_col).toEqual(complexJson)
     })
 
     test('should automatically cast plain JavaScript objects as JSONB', async () => {
@@ -923,8 +919,7 @@ describe('PostgreSQL Integration Tests', () => {
       })
 
       const result = await client.query('SELECT jsonb_col FROM type_tests')
-      const parsed = JSON.parse(result.records![0].jsonb_col)
-      expect(parsed).toEqual(metadata)
+      expect(result.records![0].jsonb_col).toEqual(metadata)
     })
 
     test('should provide JSON typeHint for plain JavaScript objects', async () => {
@@ -936,8 +931,7 @@ describe('PostgreSQL Integration Tests', () => {
       })
 
       const result = await client.query('SELECT jsonb_col FROM type_tests')
-      const parsed = JSON.parse(result.records![0].jsonb_col)
-      expect(parsed).toEqual(data)
+      expect(result.records![0].jsonb_col).toEqual(data)
     })
   })
 
