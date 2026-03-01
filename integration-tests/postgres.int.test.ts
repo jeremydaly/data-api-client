@@ -8,6 +8,7 @@ import {
   getSeedUsers,
   getSeedUsersBatch,
   getSeedProductsBatch,
+  getSeedUuidUsersBatch,
   postgresTables,
   type IntegrationTestConfig,
   type TestTable
@@ -281,6 +282,34 @@ describe('PostgreSQL Integration Tests', () => {
 
       const selectResult = await client.query('SELECT COUNT(*) as count FROM users')
       expect(selectResult.records![0].count).toBe(users.length)
+    })
+
+    test('should perform batch INSERT with RETURNING for UUID primary keys', async () => {
+      const uuidUsers = getSeedUuidUsersBatch()
+      const result = await client.query(
+        'INSERT INTO uuid_users (name, email) VALUES (:name, :email) RETURNING id',
+        uuidUsers as unknown as Parameters[]
+      )
+
+      // Batch with RETURNING should return records
+      expect(result.records).toBeDefined()
+      expect(result.records).toHaveLength(uuidUsers.length)
+
+      // Each record should have a valid UUID id
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      for (const record of result.records!) {
+        expect(record.id).toBeDefined()
+        expect(typeof record.id).toBe('string')
+        expect(record.id).toMatch(uuidRegex)
+      }
+
+      // Verify all returned UUIDs are distinct
+      const ids = result.records!.map((r: any) => r.id)
+      expect(new Set(ids).size).toBe(uuidUsers.length)
+
+      // Verify rows were actually inserted
+      const selectResult = await client.query('SELECT COUNT(*) as count FROM uuid_users')
+      expect(selectResult.records![0].count).toBe(uuidUsers.length)
     })
 
     test('should perform batch UPDATE', async () => {

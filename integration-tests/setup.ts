@@ -159,6 +159,16 @@ export const postgresTables: TestTable[] = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `
+  },
+  {
+    name: 'uuid_users',
+    schema: `
+      CREATE TABLE IF NOT EXISTS uuid_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL
+      )
+    `
   }
 ]
 
@@ -237,6 +247,17 @@ export function getSeedUsers(): Array<Record<string, ParameterValue>> {
  */
 export function getSeedUsersBatch(): Array<Array<Record<string, ParameterValue>>> {
   return getSeedUsers().map(user => [user])
+}
+
+/**
+ * Seed test data for uuid_users table in batch format (array of arrays)
+ */
+export function getSeedUuidUsersBatch(): Array<Array<Record<string, ParameterValue>>> {
+  return [
+    [{ name: 'Alice Johnson', email: 'alice@example.com' }],
+    [{ name: 'Bob Smith', email: 'bob@example.com' }],
+    [{ name: 'Carol Williams', email: 'carol@example.com' }]
+  ]
 }
 
 /**
