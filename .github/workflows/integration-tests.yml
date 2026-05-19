@@ -7,6 +7,15 @@ on:
     branches: [main, v2.0.0]
   workflow_dispatch:
 
+# Serialize all runs against the shared Aurora cluster. Without this,
+# concurrent PRs and main pushes race on table create/drop in their
+# beforeAll/afterAll hooks, producing spurious "Table doesn't exist"
+# failures. cancel-in-progress: false so we never interrupt a run
+# mid-afterAll and leave the cluster in a half-cleaned state.
+concurrency:
+  group: integration-tests
+  cancel-in-progress: false
+
 jobs:
   integration-test:
     runs-on: ubuntu-latest
