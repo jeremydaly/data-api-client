@@ -919,7 +919,7 @@ await data.query('INSERT INTO products (tags) VALUES (ARRAY[:tag1, :tag2, :tag3]
 })
 ```
 
-Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application.
+Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application. `NULL` elements inside arrays round-trip correctly — e.g. `'{1,NULL,3}'::int[]` deserializes to `[1, null, 3]`.
 
 ## PostgreSQL Data Type Support
 
@@ -1090,7 +1090,6 @@ Despite parameter limitations, array **results** work great! The Data API Client
 
 - **MACADDR**: Not supported by the Data API
 - **Multidimensional Arrays**: Limited support for arrays with more than one dimension
-- **NULL values in arrays**: May not work correctly in all cases
 - **Some Range Types**: INT8RANGE, DATERANGE, TSRANGE have casting issues
 
 ### Batch operations have limited feedback

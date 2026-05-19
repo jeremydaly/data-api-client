@@ -1288,8 +1288,7 @@ describe('PostgreSQL Integration Tests', () => {
       expect(result.records![0].jsonb_array).toHaveLength(2)
     })
 
-    // TODO: Fix NULL handling in arrays
-    test.fails('should handle NULL values in integer arrays', async () => {
+    test('should handle NULL values in integer arrays', async () => {
       await client.query('INSERT INTO array_tests (int_array) VALUES (:value::int[])', {
         value: '{1,NULL,3}'
       })
@@ -1298,8 +1297,7 @@ describe('PostgreSQL Integration Tests', () => {
       expect(result.records![0].int_array).toEqual([1, null, 3])
     })
 
-    // TODO: Fix NULL handling in arrays
-    test.fails('should handle NULL values in text arrays', async () => {
+    test('should handle NULL values in text arrays', async () => {
       await client.query('INSERT INTO array_tests (text_array) VALUES (:value::text[])', {
         value: '{"first",NULL,"third"}'
       })
@@ -1389,24 +1387,6 @@ describe('PostgreSQL Integration Tests', () => {
 
         const result = await client.query('SELECT text_array FROM array_tests')
         expect(result.records![0].text_array).toEqual(['Hello "World"', "It's working", 'Line 1\nLine 2'])
-      })
-
-      test.fails('should handle NULL values in integer arrays', async () => {
-        await client.query('INSERT INTO array_tests (int_array) VALUES (:value::int[])', {
-          value: '{1,NULL,3}'
-        })
-
-        const result = await client.query('SELECT int_array FROM array_tests')
-        expect(result.records![0].int_array).toEqual([1, null, 3])
-      })
-
-      test.fails('should handle NULL values in text arrays', async () => {
-        await client.query('INSERT INTO array_tests (text_array) VALUES (:value::text[])', {
-          value: '{"first",NULL,"third"}'
-        })
-
-        const result = await client.query('SELECT text_array FROM array_tests')
-        expect(result.records![0].text_array).toEqual(['first', null, 'third'])
       })
 
       test.fails('should handle 2D integer arrays - UNSUPPORTED by Data API', async () => {
