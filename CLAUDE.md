@@ -5,7 +5,7 @@
 **data-api-client** is a lightweight wrapper for the Amazon Aurora Serverless Data API that simplifies database interactions by abstracting away field value type annotations. It acts as a "DocumentClient" equivalent for the RDS Data API.
 
 - **Package Name**: data-api-client
-- **Current Version**: 2.0.0.beta.1
+- **Current Version**: 2.2.0
 - **Author**: Jeremy Daly <jeremy@jeremydaly.com>
 - **License**: MIT
 - **Repository**: https://github.com/jeremydaly/data-api-client
@@ -321,14 +321,30 @@ query('INSERT INTO table (text_array) VALUES (ARRAY[:tag1, :tag2, :tag3])', {
 3. Output directory: `dist/` (all compiled files)
 4. Package points to `dist/index.js` (main) and `dist/index.d.ts` (types)
 
-### Version Updates
-- Update version in `package.json`
-- Run `npm install` to update `package-lock.json`
-- Tag commits appropriately
+### Release Process
+
+1. **Bump version**: `npm version patch|minor|major --no-git-tag-version`
+2. **Commit version bump**: `git add package.json package-lock.json && git commit -m "chore: bump version to <version>"`
+3. **Create annotated tag**: `git tag -a v<version> -m "Release v<version>"`
+4. **Push commit and tag**: `git push origin main && git push origin v<version>`
+5. **Create GitHub release**: Use `gh release create v<version> --draft` with release notes
+6. **Publish release**: Publishing the GitHub release triggers the npm publish workflow automatically
+
+### npm Publishing (OIDC Trusted Publishers)
+
+Publishing to npm uses OIDC Trusted Publishers (no long-lived npm tokens). Configuration is in `.github/workflows/publish.yml`.
+
+- **Permissions**: `id-token: write` must be at **top level** of the workflow (not job level)
+- **Node version**: Node 24+ (for npm with built-in OIDC support)
+- **Registry**: `registry-url: 'https://registry.npmjs.org'` on `actions/setup-node`
+- **Auth**: No `NODE_AUTH_TOKEN` needed — OIDC handles authentication
+- **Provenance**: Automatic with trusted publishing (no `--provenance` flag needed)
+- **Triggers**: `release: [published]` (automatic) and `workflow_dispatch` (manual)
+- **Trusted publisher** must be configured on npmjs.com package settings (org, repo, workflow filename)
 
 ### CI/CD
 - Tests can be run via `npm run test-ci` (linting + tests)
-- Ready for GitHub Actions or other modern CI/CD
+- Publish workflow runs lint, build, unit tests, and integration tests before publishing
 
 ## Key Files
 

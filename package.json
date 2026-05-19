@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "2.1.4",
+  "version": "2.2.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -74,7 +74,7 @@
     "#fixtures/*": "./fixtures/*"
   },
   "devDependencies": {
-    "@aws-sdk/client-rds-data": "^3.712.0",
+    "@aws-sdk/client-rds-data": "^3.1048.0",
     "@types/node": "^24.6.2",
     "@types/pg": "^8.15.5",
     "@types/sqlstring": "^2.3.2",
@@ -96,7 +96,7 @@
     "sqlstring": "^2.3.2"
   },
   "peerDependencies": {
-    "@aws-sdk/client-rds-data": "^3.0.0"
+    "@aws-sdk/client-rds-data": "^3.1048.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-rds-data": {
