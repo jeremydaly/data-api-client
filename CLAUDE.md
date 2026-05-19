@@ -292,8 +292,7 @@ query('INSERT INTO table (text_array) VALUES (ARRAY[:tag1, :tag2, :tag3])', {
 3. **No record counts in batch** - Batch operations don't return `numberOfRecordsUpdated`
 4. **MACADDR type unsupported** - Network MACADDR type not supported by Data API
 5. **Some range types unsupported** - INT8RANGE, DATERANGE, TSRANGE have casting issues
-6. **NULL values in arrays** - May not work correctly in all cases
-7. **Multidimensional arrays** - Limited support for arrays with more than one dimension
+6. **Multidimensional arrays** - Limited support for arrays with more than one dimension
 
 ## Development Workflow
 
