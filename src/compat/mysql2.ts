@@ -13,6 +13,7 @@ import SqlString from 'sqlstring'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
 import { mapToMySQLError } from './errors'
+import { classifyTransactionControl, NESTED_TRANSACTION_MESSAGE } from './transaction-sql'
 
 // Define our own compatible types instead of using mysql2's types
 // This allows us to properly type the Promise-based interface
@@ -288,6 +289,12 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
     sqlOrOptions: string | { sql: string; values?: any[]; rowsAsArray?: boolean; namedPlaceholders?: boolean },
     params?: any[] | Record<string, any>
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
+    // Intercept transaction-control statements (BEGIN/COMMIT/ROLLBACK/...) before
+    // any formatting and map them to the Data API transaction lifecycle.
+    const rawSql = typeof sqlOrOptions === 'string' ? sqlOrOptions : sqlOrOptions.sql
+    const txControl = await runTransactionControl<R>(rawSql)
+    if (txControl) return txControl
+
     let sql: string
     let values: any[] | Record<string, any> = []
     let rowsAsArray = false
@@ -342,6 +349,44 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
     return convertToMySQL2Result(result, sql)
   }
 
+  // Intercept transaction-control statements (BEGIN/COMMIT/ROLLBACK/...) issued
+  // as raw SQL (e.g. by Knex) and map them to the Data API transaction
+  // lifecycle, threading transactionId onto subsequent queries on this
+  // connection. Runs before executeQuery's normal path.
+  async function runTransactionControl<R = any>(sql: string): Promise<[R[], any] | null> {
+    const txn = classifyTransactionControl(sql)
+    if (!txn) return null
+    const empty: [R[], any] = [[] as R[], undefined]
+    switch (txn.kind) {
+      case 'begin': {
+        const txResult = await core.beginTransaction()
+        transactionId = txResult.transactionId
+        return empty
+      }
+      case 'commit': {
+        if (transactionId) {
+          await core.commitTransaction({ transactionId } as any)
+          transactionId = undefined
+        }
+        return empty
+      }
+      case 'rollback': {
+        if (transactionId) {
+          await core.rollbackTransaction({ transactionId } as any)
+          transactionId = undefined
+        }
+        return empty
+      }
+      case 'setTransaction':
+        // Isolation-level prefix; the Data API uses default isolation. No-op.
+        return empty
+      case 'savepoint':
+      case 'release':
+      case 'rollbackTo':
+        throw new Error(NESTED_TRANSACTION_MESSAGE)
+    }
+  }
+
   const connection = Object.assign(eventEmitter, {
     connect(callback?: (err: Error | null) => void): any {
       // No-op for Data API (no connection needed)
@@ -383,9 +428,14 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
         // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
-        } else if (paramsOrCallback !== undefined) {
-          params = paramsOrCallback
-          if (callback !== undefined) {
+        } else {
+          // params may be undefined while the callback is supplied as the 3rd
+          // arg — e.g. Knex issues `query({ sql: 'BEGIN;' }, undefined, cb)` for
+          // transaction-control statements that have no bindings.
+          if (paramsOrCallback !== undefined && paramsOrCallback !== null) {
+            params = paramsOrCallback
+          }
+          if (typeof callback === 'function') {
             cb = callback
           }
         }
@@ -393,9 +443,14 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
         // query(sql, params?, callback?)
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
-        } else if (paramsOrCallback !== undefined) {
-          params = paramsOrCallback
-          if (callback !== undefined) {
+        } else {
+          // params may be undefined while the callback is supplied as the 3rd
+          // arg — e.g. Knex issues `query({ sql: 'BEGIN;' }, undefined, cb)` for
+          // transaction-control statements that have no bindings.
+          if (paramsOrCallback !== undefined && paramsOrCallback !== null) {
+            params = paramsOrCallback
+          }
+          if (typeof callback === 'function') {
             cb = callback
           }
         }
@@ -653,9 +708,14 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
         // Drizzle calls query({ sql }, params) - params come as second arg
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
-        } else if (paramsOrCallback !== undefined) {
-          params = paramsOrCallback
-          if (callback !== undefined) {
+        } else {
+          // params may be undefined while the callback is supplied as the 3rd
+          // arg — e.g. Knex issues `query({ sql: 'BEGIN;' }, undefined, cb)` for
+          // transaction-control statements that have no bindings.
+          if (paramsOrCallback !== undefined && paramsOrCallback !== null) {
+            params = paramsOrCallback
+          }
+          if (typeof callback === 'function') {
             cb = callback
           }
         }
@@ -663,9 +723,14 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
         // query(sql, params?, callback?)
         if (typeof paramsOrCallback === 'function') {
           cb = paramsOrCallback as ((err: Error | null, results: R[] | MySQL2QueryResult<R>, fields: any) => void)
-        } else if (paramsOrCallback !== undefined) {
-          params = paramsOrCallback
-          if (callback !== undefined) {
+        } else {
+          // params may be undefined while the callback is supplied as the 3rd
+          // arg — e.g. Knex issues `query({ sql: 'BEGIN;' }, undefined, cb)` for
+          // transaction-control statements that have no bindings.
+          if (paramsOrCallback !== undefined && paramsOrCallback !== null) {
+            params = paramsOrCallback
+          }
+          if (typeof callback === 'function') {
             cb = callback
           }
         }

@@ -13,6 +13,7 @@ import * as pgEscape from '../pg-escape'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
 import { mapToPostgresError, type PostgresError } from './errors'
+import { classifyTransactionControl, NESTED_TRANSACTION_MESSAGE } from './transaction-sql'
 
 // Pg-compatible types
 export interface PgQueryResult<R = any> {
@@ -263,46 +264,38 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
       // Similarly, sqlOrConfig.types is ignored as the Data API handles type parsing.
     }
 
-    // Check for transaction control commands
-    const upperSql = sql.trim().toUpperCase()
-
-    // BEGIN transaction
-    if (upperSql === 'BEGIN' || upperSql.startsWith('BEGIN ')) {
-      const txResult = await core.beginTransaction()
-      transactionId = txResult.transactionId
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'BEGIN',
-        fields: []
-      }
-    }
-
-    // COMMIT transaction
-    if (upperSql === 'COMMIT') {
-      if (transactionId) {
-        await core.commitTransaction({ transactionId } as any)
-        transactionId = undefined
-      }
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'COMMIT',
-        fields: []
-      }
-    }
-
-    // ROLLBACK transaction
-    if (upperSql === 'ROLLBACK') {
-      if (transactionId) {
-        await core.rollbackTransaction({ transactionId } as any)
-        transactionId = undefined
-      }
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'ROLLBACK',
-        fields: []
+    // Intercept transaction-control statements (BEGIN/COMMIT/ROLLBACK/...) and
+    // map them to the Data API transaction lifecycle, threading transactionId.
+    const txn = classifyTransactionControl(sql)
+    if (txn) {
+      const empty = (command: string): PgQueryResult<R> => ({ rows: [] as R[], rowCount: 0, command, fields: [] })
+      switch (txn.kind) {
+        case 'begin': {
+          const txResult = await core.beginTransaction()
+          transactionId = txResult.transactionId
+          return empty('BEGIN')
+        }
+        case 'commit': {
+          if (transactionId) {
+            await core.commitTransaction({ transactionId } as any)
+            transactionId = undefined
+          }
+          return empty('COMMIT')
+        }
+        case 'rollback': {
+          if (transactionId) {
+            await core.rollbackTransaction({ transactionId } as any)
+            transactionId = undefined
+          }
+          return empty('ROLLBACK')
+        }
+        case 'setTransaction':
+          // Isolation-level prefix; the Data API uses default isolation. No-op.
+          return empty('SET')
+        case 'savepoint':
+        case 'release':
+        case 'rollbackTo':
+          throw new Error(NESTED_TRANSACTION_MESSAGE)
       }
     }
 

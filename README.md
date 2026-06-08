@@ -901,12 +901,20 @@ const id = await db('users').insert({ name: 'Alice' }).returning('id')
 
 > **Note:** `knex` is an optional peer dependency. Install it alongside `data-api-client`
 > to use these helpers.
->
-> **Transactions are not supported with Knex.** Knex issues literal
-> `BEGIN`/`COMMIT`/`ROLLBACK` SQL through the connection, which the RDS Data API does not
-> honor (it requires a threaded transaction ID). For transactional work, use the native
-> `data-api-client` [`transaction()`](#transactions) API. All non-transactional query
-> building (selects, inserts, updates, deletes, joins, aggregates) works as expected.
+
+Knex transactions work — the compat layer intercepts the `BEGIN`/`COMMIT`/`ROLLBACK`
+SQL that Knex issues and maps it to the Data API transaction lifecycle:
+
+```typescript
+await db.transaction(async (trx) => {
+  const [userId] = await trx('users').insert({ name: 'Alice' }).returning('id')
+  await trx('posts').insert({ user_id: userId, title: 'Hello' })
+}) // commits on success, rolls back if the callback throws
+```
+
+> **Nested transactions are not supported.** They require SQL `SAVEPOINT`s, which the RDS
+> Data API has no primitive for, so a nested `trx.transaction(...)` throws. A single
+> top-level transaction works as shown above.
 
 **Benefits of Compatibility Layers:**
 

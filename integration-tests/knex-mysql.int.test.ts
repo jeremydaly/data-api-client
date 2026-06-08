@@ -96,12 +96,35 @@ describe('Knex with MySQL via Data API compat', () => {
     expect(remaining.every((r) => r.name !== 'Bob')).toBe(true)
   })
 
-  // LIMITATION: Knex transactions issue literal BEGIN/COMMIT/ROLLBACK SQL
-  // through the raw connection. The RDS Data API auto-commits each statement
-  // and requires a threaded transactionId instead, so Knex's db.transaction()
-  // does not isolate or roll back (it deadlocks the single logical connection).
-  // For transactional work use the native data-api-client client.transaction().
-  test.skip('db.transaction() is not supported over the Data API', () => {
-    // Documented as skipped: see comment above.
+  // Transactions: Knex issues literal BEGIN/COMMIT/ROLLBACK SQL, which the
+  // compat layer intercepts and maps to the Data API transaction lifecycle.
+  test('transaction commits', async () => {
+    await db.transaction(async (trx) => {
+      await trx(TABLE).insert({ name: 'Txn Commit', email: 'txc@example.com', age: 40 })
+    })
+    const row = await db(TABLE).where({ email: 'txc@example.com' }).first()
+    expect(row?.name).toBe('Txn Commit')
+  })
+
+  test('transaction rolls back on error', async () => {
+    await expect(
+      db.transaction(async (trx) => {
+        await trx(TABLE).insert({ name: 'Txn Rollback', email: 'txr@example.com', age: 41 })
+        throw new Error('force rollback')
+      })
+    ).rejects.toThrow('force rollback')
+    const row = await db(TABLE).where({ email: 'txr@example.com' }).first()
+    expect(row).toBeUndefined()
+  })
+
+  // Nested transactions need SAVEPOINTs, which the Data API does not support.
+  test('nested transactions (savepoints) are rejected', async () => {
+    await expect(
+      db.transaction(async (trx) => {
+        await trx.transaction(async () => {
+          /* inner uses SAVEPOINT — unsupported */
+        })
+      })
+    ).rejects.toThrow(/Nested transactions/)
   })
 })

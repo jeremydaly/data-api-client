@@ -150,11 +150,23 @@ API-backed connection. Both engines are covered by real integration tests
 (`integration-tests/knex-{mysql,pg}.int.test.ts`); `test:int:orm:knex` runs both
 (with `:pg`/`:mysql` variants).
 
-**Knex limitation — transactions**: Knex issues literal `BEGIN`/`COMMIT`/`ROLLBACK`
-SQL through the raw connection, which the Data API does not honor (it needs a threaded
-`transactionId`). Knex `db.transaction()` is therefore unsupported; use the native
-`client.transaction()` for transactional work. Documented in the README and as skipped
-tests in both Knex suites.
+**Transactions (all SQL-driven callers)**: ORMs/Knex drive transactions by issuing
+literal `BEGIN`/`COMMIT`/`ROLLBACK` SQL on the connection. Both compat layers intercept
+these via `src/compat/transaction-sql.ts` (`classifyTransactionControl`) and map them to
+the Data API lifecycle (`beginTransaction`/`commitTransaction`/`rollbackTransaction`),
+threading `transactionId` onto subsequent queries on that connection. This works because
+the caller runs a whole transaction on one acquired connection, and `transactionId` is a
+per-connection-instance closure. Knex `db.transaction()` commits and rolls back correctly.
+
+**Limitation — nested transactions**: SQL `SAVEPOINT`/`RELEASE`/`ROLLBACK TO SAVEPOINT`
+have no Data API primitive, so the classifier throws a clear error for them. Top-level
+transactions work; nested ones (e.g. `trx.transaction(...)`) are rejected. Covered by
+`nested transactions (savepoints) are rejected` tests in both Knex suites.
+
+**mysql2 callback note**: the mysql2 compat `query()` accepts the
+`query(config, undefined, callback)` form (params undefined, callback as 3rd arg) that
+Knex uses for bindings-less transaction statements — see the callback-parsing in
+`createMySQLConnection`. Missing this caused Knex transactions to hang.
 
 When adding features, keep the native client and compat layers in sync — a behavior
 change in `query.ts`/`results.ts` usually needs matching compat tests.
@@ -213,7 +225,7 @@ methods) to survive Aurora Serverless v2 **scale-to-zero wake-ups**. Enabled by 
   - Integration tests: `integration-tests/*.int.test.ts`, grouped into three suites:
     - **core**: `mysql.int.test.ts`, `postgres.int.test.ts` (native client against each engine)
     - **compat**: `pg-compat.int.test.ts`, `mysql2-compat.int.test.ts` (driver compat layers)
-    - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}`, `knex-{mysql,pg}` (all working; Knex `db.transaction()` excluded — see Driver Compatibility Layers)
+    - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}`, `knex-{mysql,pg}` (all working, including transactions; nested transactions rejected — see Driver Compatibility Layers)
   - See `integration-tests/INTEGRATION_TESTING.md` for the Aurora Serverless v2 CloudFormation setup (`infra/`)
 - **Config**: `vitest.config.mjs` (ES module format, requires `.mjs` extension)
 - **IMPORTANT**: Integration tests read AWS credentials/ARNs from `process.env`; nothing auto-loads `.env.local` (vitest config does not). You must `source .env.local` **in the same command** as the test run, because shell env vars do not persist across separate commands — e.g. `source .env.local && npm run test:int:orm:knex`. Sourcing in one step and running tests in another (or a fresh terminal / new `!` command) will not work.
