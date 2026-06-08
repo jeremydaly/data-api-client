@@ -151,7 +151,6 @@ function convertPgPlaceholders(sql: string, params: any[] = []): { sql: string; 
  * Infer SQL command type from query
  */
 function inferCommand(sql: string): string {
-  const match = sql.trim().split(/\s+/)[0]?.toUpperCase()
   const knownCommands = [
     'SELECT',
     'INSERT',
@@ -164,7 +163,24 @@ function inferCommand(sql: string): string {
     'GRANT',
     'REVOKE'
   ]
-  return knownCommands.includes(match) ? match : 'QUERY'
+  const first = sql.trim().split(/\s+/)[0]?.toUpperCase()
+  if (first && knownCommands.includes(first)) return first
+
+  // CTEs start with WITH [RECURSIVE]; the effective command is the primary
+  // statement's verb (e.g. `WITH x AS (...) SELECT ...` is a SELECT). Find the
+  // first SELECT/INSERT/UPDATE/DELETE keyword at parenthesis depth 0 — the CTE
+  // bodies are nested in parens, so their verbs are skipped.
+  if (first === 'WITH') {
+    let depth = 0
+    const re = /\(|\)|\b(SELECT|INSERT|UPDATE|DELETE)\b/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(sql)) !== null) {
+      if (m[0] === '(') depth++
+      else if (m[0] === ')') depth--
+      else if (depth === 0) return m[1].toUpperCase()
+    }
+  }
+  return 'QUERY'
 }
 
 /**

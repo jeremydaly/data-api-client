@@ -916,6 +916,13 @@ await db.transaction(async (trx) => {
 > Data API has no primitive for, so a nested `trx.transaction(...)` throws. A single
 > top-level transaction works as shown above.
 
+The common query-builder syntax is covered by integration tests for both engines —
+selects/`distinct`/`pluck`/`first`, the `where` family (`whereIn`, `whereNull`,
+`whereBetween`, `whereExists`, `whereRaw`, …), joins, `groupBy`/`having`/aggregates,
+`orderBy`/`limit`/`offset`, unions, subqueries, CTEs (`with`), `insert`/`update`/`del`,
+`returning` (PostgreSQL), `increment`/`decrement`, and `onConflict().merge()` upserts.
+(Streaming via `.stream()` is not supported — the Data API has no cursor API.)
+
 **Benefits of Compatibility Layers:**
 
 - **Zero code changes** when migrating from mysql2 or pg
