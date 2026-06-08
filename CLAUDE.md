@@ -216,7 +216,7 @@ methods) to survive Aurora Serverless v2 **scale-to-zero wake-ups**. Enabled by 
     - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}`, `knex-{mysql,pg}` (all working; Knex `db.transaction()` excluded — see Driver Compatibility Layers)
   - See `integration-tests/INTEGRATION_TESTING.md` for the Aurora Serverless v2 CloudFormation setup (`infra/`)
 - **Config**: `vitest.config.mjs` (ES module format, requires `.mjs` extension)
-- **IMPORTANT**: Before running integration tests, run `source .env.local` to load AWS credentials and cluster ARNs
+- **IMPORTANT**: Integration tests read AWS credentials/ARNs from `process.env`; nothing auto-loads `.env.local` (vitest config does not). You must `source .env.local` **in the same command** as the test run, because shell env vars do not persist across separate commands — e.g. `source .env.local && npm run test:int:orm:knex`. Sourcing in one step and running tests in another (or a fresh terminal / new `!` command) will not work.
 - **Sample data**: `fixtures/sample-*-response.json` files (imported via `#fixtures/*` alias)
 - **Run tests** (script names match the suite grouping above):
   - `npm test` / `npm run test:unit` - Build + run unit tests
