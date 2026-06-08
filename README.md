@@ -902,7 +902,7 @@ const id = await db('users').insert({ name: 'Alice' }).returning('id')
 > **Note:** `knex` is an optional peer dependency. Install it alongside `data-api-client`
 > to use these helpers.
 
-Knex transactions work — the compat layer intercepts the `BEGIN`/`COMMIT`/`ROLLBACK`
+Knex transactions work. The compat layer intercepts the `BEGIN`/`COMMIT`/`ROLLBACK`
 SQL that Knex issues and maps it to the Data API transaction lifecycle:
 
 ```typescript
@@ -916,12 +916,12 @@ await db.transaction(async (trx) => {
 > Data API has no primitive for, so a nested `trx.transaction(...)` throws. A single
 > top-level transaction works as shown above.
 
-The common query-builder syntax is covered by integration tests for both engines —
+The common query-builder syntax is covered by integration tests for both engines:
 selects/`distinct`/`pluck`/`first`, the `where` family (`whereIn`, `whereNull`,
-`whereBetween`, `whereExists`, `whereRaw`, …), joins, `groupBy`/`having`/aggregates,
+`whereBetween`, `whereExists`, `whereRaw`, and so on), joins, `groupBy`/`having`/aggregates,
 `orderBy`/`limit`/`offset`, unions, subqueries, CTEs (`with`), `insert`/`update`/`del`,
 `returning` (PostgreSQL), `increment`/`decrement`, and `onConflict().merge()` upserts.
-(Streaming via `.stream()` is not supported — the Data API has no cursor API.)
+Streaming via `.stream()` is not supported, since the Data API has no cursor API.
 
 **Benefits of Compatibility Layers:**
 
