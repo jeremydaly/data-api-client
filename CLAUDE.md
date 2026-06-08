@@ -17,7 +17,7 @@ Version 2.x (stable) supports:
 - Amazon Aurora PostgreSQL-Compatible Edition enhancements (default engine is now `'pg'`)
 - AWS SDK v3 (migrated from v2)
 - Full TypeScript implementation with type definitions
-- Drop-in driver compat layers (`pg`, `mysql2`) with Drizzle and Kysely support (Knex not supported — see Driver Compatibility Layers)
+- Drop-in driver compat layers (`pg`, `mysql2`) plus a Knex adapter (`compat/knex`), with Drizzle, Kysely, and Knex support
 - Automatic retries for Aurora Serverless v2 scale-to-zero wake-ups
 
 ## Architecture
@@ -133,18 +133,28 @@ Entry Points) and are exercised by the ORM integration tests.
   expose a mysql2-shaped connection (`query()` returning `[rows, fields]`,
   `PoolConnection.release()`). Set `namedPlaceholders: true` in config to enable
   `:name` placeholder syntax mysql2 callers expect.
+- **`data-api-client/compat/knex`** — `createKnexMySQLClient` / `createKnexPgClient`
+  return custom Knex `client` classes (subclasses of Knex's mysql2/pg dialects with
+  `_driver()` overridden) so Knex runs over the Data API. `knex` is an optional peer
+  dependency, lazy-`require`d. See ORM support status for the transaction caveat.
 - **`data-api-client/compat/errors`** — `mapToPostgresError` / `mapToMySQLError`
   translate Data API exceptions into pg/mysql2-shaped error objects (code, etc.) so
   ORM error handling behaves as expected.
 
 **ORM support status**: Drizzle and Kysely work because they accept an injected
 driver/dialect and call its `query()` methods, so a look-alike pool/client suffices.
-**Knex is NOT supported** — its dialect *constructs* the driver from a connection
-config bag (it requires `mysql2`/`pg` itself) rather than using a supplied pool, so the
-drop-in approach can't intercept queries. `integration-tests/knex-mysql.int.test.ts` is
-entirely `describe.skip` documenting this; there is no `knex-pg` test. Making Knex work
-would require a custom Knex dialect, which is out of scope for the compat layer. The
-`test:int:orm:knex` script exists but currently runs only skipped tests.
+**Knex is supported via `compat/knex`** using a different mechanism: Knex *constructs*
+its own driver rather than accepting an injected pool, so the helpers subclass Knex's
+mysql2/pg dialect and override the single `_driver()` method to hand Knex a Data
+API-backed connection. Both engines are covered by real integration tests
+(`integration-tests/knex-{mysql,pg}.int.test.ts`); `test:int:orm:knex` runs both
+(with `:pg`/`:mysql` variants).
+
+**Knex limitation — transactions**: Knex issues literal `BEGIN`/`COMMIT`/`ROLLBACK`
+SQL through the raw connection, which the Data API does not honor (it needs a threaded
+`transactionId`). Knex `db.transaction()` is therefore unsupported; use the native
+`client.transaction()` for transactional work. Documented in the README and as skipped
+tests in both Knex suites.
 
 When adding features, keep the native client and compat layers in sync — a behavior
 change in `query.ts`/`results.ts` usually needs matching compat tests.
@@ -203,7 +213,7 @@ methods) to survive Aurora Serverless v2 **scale-to-zero wake-ups**. Enabled by 
   - Integration tests: `integration-tests/*.int.test.ts`, grouped into three suites:
     - **core**: `mysql.int.test.ts`, `postgres.int.test.ts` (native client against each engine)
     - **compat**: `pg-compat.int.test.ts`, `mysql2-compat.int.test.ts` (driver compat layers)
-    - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}` (working); `knex-mysql` is all `describe.skip` (Knex unsupported)
+    - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}`, `knex-{mysql,pg}` (all working; Knex `db.transaction()` excluded — see Driver Compatibility Layers)
   - See `integration-tests/INTEGRATION_TESTING.md` for the Aurora Serverless v2 CloudFormation setup (`infra/`)
 - **Config**: `vitest.config.mjs` (ES module format, requires `.mjs` extension)
 - **IMPORTANT**: Before running integration tests, run `source .env.local` to load AWS credentials and cluster ARNs
