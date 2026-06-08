@@ -20,6 +20,11 @@
       "import": "./dist/compat/mysql2.js",
       "require": "./dist/compat/mysql2.js"
     },
+    "./compat/knex": {
+      "types": "./dist/compat/knex.d.ts",
+      "import": "./dist/compat/knex.js",
+      "require": "./dist/compat/knex.js"
+    },
     "./compat": {
       "types": "./dist/compat/index.d.ts",
       "import": "./dist/compat/index.js",
@@ -49,7 +54,9 @@
     "test:int:orm:drizzle": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts && vitest run integration-tests/drizzle-mysql.int.test.ts",
     "test:int:orm:drizzle:pg": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts",
     "test:int:orm:drizzle:mysql": "npm run build && vitest run integration-tests/drizzle-mysql.int.test.ts",
-    "test:int:orm:knex": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts",
+    "test:int:orm:knex": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts integration-tests/knex-pg.int.test.ts",
+    "test:int:orm:knex:pg": "npm run build && vitest run integration-tests/knex-pg.int.test.ts",
+    "test:int:orm:knex:mysql": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts",
     "test-ci": "npm run build && eslint src && vitest run src/",
     "lint": "eslint src",
     "prepublishOnly": "npm run build"
@@ -96,10 +103,14 @@
     "sqlstring": "^2.3.2"
   },
   "peerDependencies": {
-    "@aws-sdk/client-rds-data": "^3.1048.0"
+    "@aws-sdk/client-rds-data": "^3.1048.0",
+    "knex": "^3.0.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-rds-data": {
+      "optional": true
+    },
+    "knex": {
       "optional": true
     }
   },

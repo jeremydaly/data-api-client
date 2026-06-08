@@ -9,7 +9,7 @@
 
 The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API. It also dramatically simplifies **transactions**, provides **automatic retry logic** for scale-to-zero clusters, and includes **compatibility layers** for mysql2 and pg with full **ORM support**.
 
-**Version 2.1** adds mysql2 and pg compatibility layers, automatic retry logic for cluster wake-ups, and verified support for Drizzle ORM and Kysely query builder.
+**Version 2.1** adds mysql2 and pg compatibility layers, automatic retry logic for cluster wake-ups, and verified support for the Drizzle ORM, Kysely, and Knex query builders.
 
 **Version 2.0** introduced support for the new [RDS Data API for Aurora Serverless v2 and Aurora provisioned database instances](https://aws.amazon.com/about-aws/whats-new/2024/09/amazon-aurora-mysql-rds-data-api/), enhanced [Amazon Aurora PostgreSQL-Compatible Edition](https://aws.amazon.com/about-aws/whats-new/2023/12/amazon-aurora-postgresql-rds-data-api/) support, migration to AWS SDK v3, full TypeScript implementation, and comprehensive PostgreSQL data type coverage including **automatic array handling**.
 
@@ -23,7 +23,7 @@ For more information about the Aurora Serverless Data API, you can review the [o
   - Configurable and enabled by default
 - **mysql2 Compatibility Layer**: Drop-in replacement for the `mysql2/promise` library
   - Full support for connection pools and transactions
-  - Works seamlessly with ORMs like Drizzle and Kysely
+  - Works seamlessly with ORMs like Drizzle, Kysely, and Knex
 - **pg Compatibility Layer**: Drop-in replacement for the `pg` (node-postgres) library
   - Promise-based and callback-based APIs
   - Compatible with ORMs and query builders
@@ -197,7 +197,7 @@ The AWS Data API offers a [built-in JSON format option](https://docs.aws.amazon.
 
 **No Additional Limitations:** AWS's JSON support requires unique column names and has a 10MB response limit. The Data API Client works with any column configuration and imposes no additional size restrictions.
 
-In summary, AWS's JSON support is a basic convenience feature, while the **Data API Client** provides true type intelligence, format flexibility, and seamless handling of complex PostgreSQL features that the native Data API doesn't support well.
+AWS's JSON support is a basic convenience feature. The **Data API Client** provides true type intelligence, format flexibility, and seamless handling of complex PostgreSQL features that the native Data API doesn't support well.
 
 ## Installation and Setup
 
@@ -855,10 +855,63 @@ const db = new Kysely<Database>({
 const users = await db.selectFrom('users').selectAll().where('id', '=', 123).execute()
 ```
 
+#### Knex Query Builder
+
+Knex doesn't accept an injected pool like Drizzle and Kysely. It constructs its own
+driver internally, so the `data-api-client/compat/knex` helpers return a custom Knex
+`client` class wired to the Data API, which you pass as `client`:
+
+**MySQL with Knex:**
+
+```typescript
+import knex from 'knex'
+import { createKnexMySQLClient } from 'data-api-client/compat/knex'
+
+const db = knex({
+  client: createKnexMySQLClient({
+    resourceArn: 'arn:...',
+    secretArn: 'arn:...',
+    database: 'myDatabase'
+  }),
+  connection: {}
+})
+
+// Use Knex normally
+const users = await db('users').where('id', 123).select('*')
+```
+
+**PostgreSQL with Knex:**
+
+```typescript
+import knex from 'knex'
+import { createKnexPgClient } from 'data-api-client/compat/knex'
+
+const db = knex({
+  client: createKnexPgClient({
+    resourceArn: 'arn:...',
+    secretArn: 'arn:...',
+    database: 'myDatabase'
+  }),
+  connection: {}
+})
+
+// Use Knex normally
+const id = await db('users').insert({ name: 'Alice' }).returning('id')
+```
+
+> **Note:** `knex` is an optional peer dependency. Install it alongside `data-api-client`
+> to use these helpers.
+>
+> **Transactions are not supported with Knex.** Knex issues literal
+> `BEGIN`/`COMMIT`/`ROLLBACK` SQL through the connection, which the RDS Data API does not
+> honor (it requires a threaded transaction ID). For transactional work, use the native
+> `data-api-client` [`transaction()`](#transactions) API. All non-transactional query
+> building (selects, inserts, updates, deletes, joins, aggregates) works as expected.
+
 **Benefits of Compatibility Layers:**
 
 - **Zero code changes** when migrating from mysql2 or pg
-- **Full ORM support** (Drizzle, Kysely)
+- **Full ORM support** (Drizzle, Kysely, Knex)
 - **Automatic retry logic** for cluster wake-ups
 - **Connection pooling simulation** (getConnection, release)
 - **Both Promise and callback APIs** supported
@@ -919,7 +972,7 @@ await data.query('INSERT INTO products (tags) VALUES (ARRAY[:tag1, :tag2, :tag3]
 })
 ```
 
-Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application. `NULL` elements inside arrays round-trip correctly — e.g. `'{1,NULL,3}'::int[]` deserializes to `[1, null, 3]`.
+Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application. `NULL` elements inside arrays round-trip correctly. For example, `'{1,NULL,3}'::int[]` deserializes to `[1, null, 3]`.
 
 ## PostgreSQL Data Type Support
 

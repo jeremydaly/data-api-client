@@ -397,8 +397,11 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
         throw new Error('Query streams are not supported by RDS Data API')
       }
 
-      // Determine if callback style or promise style
-      let params: any[] = []
+      // Determine if callback style or promise style.
+      // Leave params undefined unless an explicit values array is supplied, so
+      // that values embedded in a config object (e.g. query({ text, values }, cb)
+      // as Knex calls it) are not clobbered by an empty default in executeQuery.
+      let params: any[] | undefined
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
@@ -566,8 +569,11 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
         throw new Error('Query streams are not supported by RDS Data API')
       }
 
-      // Determine if callback style or promise style
-      let params: any[] = []
+      // Determine if callback style or promise style.
+      // Leave params undefined unless an explicit values array is supplied, so
+      // that values embedded in a config object (e.g. query({ text, values }, cb)
+      // as Knex calls it) are not clobbered by an empty default in executeQuery.
+      let params: any[] | undefined
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
