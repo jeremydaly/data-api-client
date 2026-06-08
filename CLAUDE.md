@@ -5,7 +5,7 @@
 **data-api-client** is a lightweight wrapper for the Amazon Aurora Serverless Data API that simplifies database interactions by abstracting away field value type annotations. It acts as a "DocumentClient" equivalent for the RDS Data API.
 
 - **Package Name**: data-api-client
-- **Current Version**: 2.2.0
+- **Current Version**: 2.3.0
 - **Author**: Jeremy Daly <jeremy@jeremydaly.com>
 - **License**: MIT
 - **Repository**: https://github.com/jeremydaly/data-api-client
