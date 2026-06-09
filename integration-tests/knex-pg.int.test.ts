@@ -1,32 +1,32 @@
 /**
- * Knex with MySQL via the Data API compatibility layer
+ * Knex with PostgreSQL via the Data API compatibility layer
  *
- * Uses createKnexMySQLClient (src/compat/knex.ts), which subclasses Knex's
- * mysql2 dialect and overrides _driver() so Knex drives a Data API-backed
- * connection. Exercises the query builder end-to-end against a live cluster.
+ * Uses createKnexPgClient (src/compat/knex.ts), which subclasses Knex's pg
+ * dialect and overrides _driver() so Knex drives a Data API-backed pg client.
+ * The pg dialect is stricter than mysql2 — it constructs `new driver.Client()`,
+ * expects connect() to return a Promise, and runs a `select version();` check
+ * on first acquire — so this exercises more of the connection contract.
  */
 import { describe, test, expect, beforeAll, afterAll } from 'vitest'
 import knexLib, { type Knex } from 'knex'
-import { createKnexMySQLClient } from '../src/compat/knex'
+import { createKnexPgClient } from '../src/compat/knex'
 import { loadConfig } from './setup'
 
-const TABLE = 'knex_users'
+const TABLE = 'knex_pg_users'
 
-describe('Knex with MySQL via Data API compat', () => {
+describe('Knex with PostgreSQL via Data API compat', () => {
   let db: Knex
 
   beforeAll(async () => {
-    const cfg = loadConfig('mysql')
+    const cfg = loadConfig('pg')
     db = knexLib({
-      client: createKnexMySQLClient({
+      client: createKnexPgClient({
         resourceArn: cfg.resourceArn,
         secretArn: cfg.secretArn,
         database: cfg.database,
         options: { region: cfg.region }
       }) as never,
       connection: {},
-      // The Data API is connectionless; a single logical connection keeps the
-      // suite deterministic.
       pool: { min: 0, max: 1 }
     })
 
@@ -47,9 +47,9 @@ describe('Knex with MySQL via Data API compat', () => {
     }
   })
 
-  test('insert returns generated id', async () => {
-    const ids = await db(TABLE).insert({ name: 'Alice', email: 'alice@example.com', age: 30 })
-    expect(ids[0]).toBeGreaterThan(0)
+  test('insert with returning id', async () => {
+    const rows = await db(TABLE).insert({ name: 'Alice', email: 'alice@example.com', age: 30 }).returning('id')
+    expect(rows[0].id).toBeGreaterThan(0)
   })
 
   test('select all rows', async () => {
@@ -65,18 +65,16 @@ describe('Knex with MySQL via Data API compat', () => {
     expect(row?.age).toBe(30)
   })
 
-  test('parameterized where with bindings', async () => {
+  test('parameterized where with $-bindings', async () => {
     const rows = await db(TABLE).where('age', '>', 26).select('name')
     const names = rows.map((r) => r.name)
     expect(names).toContain('Alice')
     expect(names).not.toContain('Bob')
   })
 
-  test('update returns affected row count', async () => {
-    const affected = await db(TABLE).where({ name: 'Bob' }).update({ age: 26 })
-    expect(affected).toBe(1)
-    const bob = await db(TABLE).where({ name: 'Bob' }).first()
-    expect(bob?.age).toBe(26)
+  test('update with returning', async () => {
+    const rows = await db(TABLE).where({ name: 'Bob' }).update({ age: 26 }).returning(['id', 'age'])
+    expect(rows[0].age).toBe(26)
   })
 
   test('count aggregate', async () => {

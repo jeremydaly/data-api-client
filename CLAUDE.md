@@ -5,18 +5,20 @@
 **data-api-client** is a lightweight wrapper for the Amazon Aurora Serverless Data API that simplifies database interactions by abstracting away field value type annotations. It acts as a "DocumentClient" equivalent for the RDS Data API.
 
 - **Package Name**: data-api-client
-- **Current Version**: 2.2.0
+- **Current Version**: 2.3.0
 - **Author**: Jeremy Daly <jeremy@jeremydaly.com>
 - **License**: MIT
 - **Repository**: https://github.com/jeremydaly/data-api-client
 
 ## Project Status
 
-Version 2.0 beta supports:
+Version 2.x (stable) supports:
 - New RDS Data API for Aurora Serverless v2 and Aurora provisioned database instances
-- Amazon Aurora PostgreSQL-Compatible Edition enhancements
+- Amazon Aurora PostgreSQL-Compatible Edition enhancements (default engine is now `'pg'`)
 - AWS SDK v3 (migrated from v2)
 - Full TypeScript implementation with type definitions
+- Drop-in driver compat layers (`pg`, `mysql2`) plus a Knex adapter (`compat/knex`), with Drizzle, Kysely, and Knex support
+- Automatic retries for Aurora Serverless v2 scale-to-zero wake-ups
 
 ## Architecture
 
@@ -25,14 +27,21 @@ The library is written in TypeScript and compiled to CommonJS JavaScript for bac
 
 **Modular Source Structure**:
 - `src/index.ts` - Entry point (exports `init` from client.ts)
-- `src/client.ts` - Client initialization and configuration (~155 lines)
-- `src/types.ts` - TypeScript type definitions and interfaces (~171 lines)
-- `src/params.ts` - Parameter parsing, normalization, and processing (~183 lines)
-- `src/query.ts` - Query execution logic (~95 lines)
-- `src/results.ts` - Result formatting and record processing, including array value parsing (~165 lines)
-- `src/transaction.ts` - Transaction management (~87 lines)
-- `src/utils.ts` - Utility functions for SQL parsing, type detection, and date handling (~154 lines)
-- Compiled output in `dist/`: `index.js`, `index.d.ts`, `types.js`, `types.d.ts`, etc.
+- `src/client.ts` - Client initialization and configuration
+- `src/types.ts` - TypeScript type definitions and interfaces
+- `src/params.ts` - Parameter parsing, normalization, and processing
+- `src/query.ts` - Query execution logic
+- `src/results.ts` - Result formatting and record processing, including array value parsing
+- `src/transaction.ts` - Transaction management
+- `src/utils.ts` - Utility functions for SQL parsing, type detection, and date handling
+- `src/pg-escape.ts` - Internal PostgreSQL identifier/string escaping (no external dependency)
+- `src/retry.ts` - Automatic retry logic for scale-to-zero cluster wake-ups (see Retry Behavior)
+- `src/compat/` - Drop-in driver compatibility layers (see Driver Compatibility Layers)
+  - `compat/pg.ts` - node-postgres (`pg`) compatible client/pool
+  - `compat/mysql2.ts` - mysql2 compatible connection/pool
+  - `compat/errors.ts` - Maps Data API errors to pg/mysql2 error shapes
+  - `compat/index.ts` - Compat layer exports
+- Compiled output in `dist/`: `index.js`, `index.d.ts`, `types.js`, `types.d.ts`, plus `dist/compat/*`
 
 **Key architectural decisions**:
 1. **TypeScript with build step** - Written in TypeScript, compiled to JavaScript
@@ -110,6 +119,70 @@ Supported types:
 - Handles nested/multidimensional arrays recursively
 - Array parameters must use workarounds (see Known Limitations)
 
+## Driver Compatibility Layers (`src/compat/`)
+
+In addition to the native `dataApiClient(...)` interface, the library ships drop-in
+adapters that mimic the popular Node database drivers so ORMs and query builders can
+run on the Data API unchanged. These are published as subpath exports (see Package
+Entry Points) and are exercised by the ORM integration tests.
+
+- **`data-api-client/compat/pg`** — `createPgClient` / `createPgPool` expose a
+  node-postgres-shaped client (`query()` returning `{ rows, rowCount, command, fields }`,
+  `EventEmitter`, `connect`/`end`). Targets Drizzle and Kysely Postgres dialects.
+- **`data-api-client/compat/mysql2`** — `createMySQLConnection` / `createMySQLPool`
+  expose a mysql2-shaped connection (`query()` returning `[rows, fields]`,
+  `PoolConnection.release()`). Set `namedPlaceholders: true` in config to enable
+  `:name` placeholder syntax mysql2 callers expect.
+- **`data-api-client/compat/knex`** — `createKnexMySQLClient` / `createKnexPgClient`
+  return custom Knex `client` classes (subclasses of Knex's mysql2/pg dialects with
+  `_driver()` overridden) so Knex runs over the Data API. `knex` is an optional peer
+  dependency, lazy-`require`d. See ORM support status for the transaction caveat.
+- **`data-api-client/compat/errors`** — `mapToPostgresError` / `mapToMySQLError`
+  translate Data API exceptions into pg/mysql2-shaped error objects (code, etc.) so
+  ORM error handling behaves as expected.
+
+**ORM support status**: Drizzle and Kysely work because they accept an injected
+driver/dialect and call its `query()` methods, so a look-alike pool/client suffices.
+**Knex is supported via `compat/knex`** using a different mechanism: Knex *constructs*
+its own driver rather than accepting an injected pool, so the helpers subclass Knex's
+mysql2/pg dialect and override the single `_driver()` method to hand Knex a Data
+API-backed connection. Both engines are covered by real integration tests
+(`integration-tests/knex-{mysql,pg}.int.test.ts`); `test:int:orm:knex` runs both
+(with `:pg`/`:mysql` variants).
+
+**Transactions (all SQL-driven callers)**: ORMs/Knex drive transactions by issuing
+literal `BEGIN`/`COMMIT`/`ROLLBACK` SQL on the connection. Both compat layers intercept
+these via `src/compat/transaction-sql.ts` (`classifyTransactionControl`) and map them to
+the Data API lifecycle (`beginTransaction`/`commitTransaction`/`rollbackTransaction`),
+threading `transactionId` onto subsequent queries on that connection. This works because
+the caller runs a whole transaction on one acquired connection, and `transactionId` is a
+per-connection-instance closure. Knex `db.transaction()` commits and rolls back correctly.
+
+**Limitation — nested transactions**: SQL `SAVEPOINT`/`RELEASE`/`ROLLBACK TO SAVEPOINT`
+have no Data API primitive, so the classifier throws a clear error for them. Top-level
+transactions work; nested ones (e.g. `trx.transaction(...)`) are rejected. Covered by
+`nested transactions (savepoints) are rejected` tests in both Knex suites.
+
+**mysql2 callback note**: the mysql2 compat `query()` accepts the
+`query(config, undefined, callback)` form (params undefined, callback as 3rd arg) that
+Knex uses for bindings-less transaction statements — see the callback-parsing in
+`createMySQLConnection`. Missing this caused Knex transactions to hang.
+
+When adding features, keep the native client and compat layers in sync — a behavior
+change in `query.ts`/`results.ts` usually needs matching compat tests.
+
+## Retry Behavior (`src/retry.ts`)
+
+`withRetry()` wraps every command send (`query()` and the raw `executeStatement` etc.
+methods) to survive Aurora Serverless v2 **scale-to-zero wake-ups**. Enabled by default.
+
+- **`DatabaseResumingException`** (cluster waking) → retried with wake-up-tuned delays
+  (`0, 2, 5, 10, 15, 20, 25, 30, 35, 40s`), capped by `retryOptions.maxRetries` (default **9**)
+- **Transient connection errors** (e.g. "Communications link failure", `StatementTimeoutException`)
+  → 3 quick retries with exponential backoff (`0, 2, 4s`)
+- **`retryOptions.retryableErrors`** → custom error codes/names to also retry with wake-up delays
+- Disable with `retryOptions: { enabled: false }`
+
 ## Configuration Options
 
 ```javascript
@@ -120,14 +193,21 @@ Supported types:
 
   // Optional
   database: string,       // Default database name
-  engine: 'mysql'|'pg',   // Database engine (default: 'mysql')
+  engine: 'mysql'|'pg',   // Database engine (default: 'pg')
   hydrateColumnNames: boolean,  // Return objects vs arrays (default: true)
+  namedPlaceholders: boolean,   // Enable :name placeholders for mysql2 compat layer (default: false)
   options: object,        // Passed to RDSDataClient constructor
   client: RDSDataClient, // Custom RDSDataClient instance (for X-Ray, etc.)
 
   formatOptions: {
     deserializeDate: boolean,      // Parse date strings (default: true)
     treatAsLocalDate: boolean      // Use local time (default: false)
+  },
+
+  retryOptions: {                  // Scale-to-zero wake-up retries (see Retry Behavior)
+    enabled: boolean,              // default: true
+    maxRetries: number,            // default: 9
+    retryableErrors: string[]      // extra error codes/names to retry (default: [])
   },
 
   // Deprecated (set in options instead)
@@ -141,19 +221,22 @@ Supported types:
 
 - **Framework**: Vitest (migrated from Jest)
 - **Test structure**:
-  - Unit tests: `src/*.test.ts` (4 test files colocated with source)
-  - Integration tests: `integration-tests/*.test.ts` (4 test files for MySQL and PostgreSQL)
+  - Unit tests: `src/*.test.ts` (colocated with source)
+  - Integration tests: `integration-tests/*.int.test.ts`, grouped into three suites:
+    - **core**: `mysql.int.test.ts`, `postgres.int.test.ts` (native client against each engine)
+    - **compat**: `pg-compat.int.test.ts`, `mysql2-compat.int.test.ts` (driver compat layers)
+    - **orm**: `drizzle-{pg,mysql}`, `kysely-{pg,mysql}`, `knex-{mysql,pg}` (all working, including transactions; nested transactions rejected — see Driver Compatibility Layers)
+  - See `integration-tests/INTEGRATION_TESTING.md` for the Aurora Serverless v2 CloudFormation setup (`infra/`)
 - **Config**: `vitest.config.mjs` (ES module format, requires `.mjs` extension)
-- **IMPORTANT**: Before running integration tests, run `source .env.local` to load AWS credentials and cluster ARNs
+- **IMPORTANT**: Integration tests read AWS credentials/ARNs from `process.env`; nothing auto-loads `.env.local` (vitest config does not). You must `source .env.local` **in the same command** as the test run, because shell env vars do not persist across separate commands — e.g. `source .env.local && npm run test:int:orm:knex`. Sourcing in one step and running tests in another (or a fresh terminal / new `!` command) will not work.
 - **Sample data**: `fixtures/sample-*-response.json` files (imported via `#fixtures/*` alias)
-- **Run tests**:
-  - `npm test` - Build + run unit tests
-  - `npm run test:unit` - Build + run unit tests
-  - `npm run test:integration` - Build + run all integration tests (requires `.env.local`)
-  - `npm run test:integration:mysql` - Build + run MySQL integration tests (requires `.env.local`)
-  - `npm run test:integration:postgres` - Build + run PostgreSQL integration tests (requires `.env.local`)
+- **Run tests** (script names match the suite grouping above):
+  - `npm test` / `npm run test:unit` - Build + run unit tests
+  - `npm run test:int:core` - Native client integration tests (both engines; `:mysql` / `:pg` variants)
+  - `npm run test:int:compat` - Driver compat-layer integration tests (`:pg` / `:mysql` variants)
+  - `npm run test:int:orm:kysely` / `:drizzle` / `:knex` - ORM integration tests (engine variants available)
   - `npm run test-ci` - Build + lint + run unit tests (for CI)
-  - For manual integration test runs: `source .env.local && npx vitest run integration-tests/<test-file>`
+  - For manual runs: `source .env.local && npx vitest run integration-tests/<test-file>`
 - **Global test functions**: Enabled via `globals: true` in config (no need to import describe/test/expect)
 - **Test helpers**: Integration tests use `setup.ts` for database setup
 - **Integration test credentials**: Stored in `.env.local` (not in git):
@@ -196,20 +279,22 @@ Supported types:
 - **Note**: PostgreSQL escaping is handled by internal `src/pg-escape.ts` module (no external dependency)
 
 ### Development
-- **@aws-sdk/client-rds-data** (^3.712.0) - AWS SDK v3 RDS Data API client (also peer dep)
+- **@aws-sdk/client-rds-data** (^3.1048.0) - AWS SDK v3 RDS Data API client (also peer dep)
 - **typescript** (^5.9.3) - TypeScript compiler
 - **@types/node** (^24.6.2) - Node.js type definitions
 - **@types/sqlstring** (^2.3.2) - sqlstring type definitions
+- **@types/pg** (^8.15.5) - pg type definitions (for compat layer)
 - **@typescript-eslint/parser** (^8.45.0) - TypeScript ESLint parser
 - **@typescript-eslint/eslint-plugin** (^8.45.0) - TypeScript ESLint rules
 - **eslint** (^8.12.0) + plugins - Linting
-- **vitest** (^3.2.4) - Testing framework
-- **@vitest/ui** (^3.2.4) - Vitest UI
+- **vitest** (^4.1.8) - Testing framework
+- **@vitest/ui** (^4.1.8) - Vitest UI
 - **prettier** (^2.6.2) - Code formatting
 - **tsx** (^4.20.6) - TypeScript execution engine
+- **pg**, **drizzle-orm**, **kysely**, **knex** - ORM/driver targets used only by compat integration tests
 
 ### Peer Dependencies
-- **@aws-sdk/client-rds-data** (^3.0.0) - Optional peer dependency (available in Lambda runtime or installed by user)
+- **@aws-sdk/client-rds-data** (^3.1048.0) - Optional peer dependency (available in Lambda runtime or installed by user)
 
 ## Common Patterns
 
@@ -359,16 +444,23 @@ Publishing to npm uses OIDC Trusted Publishers (no long-lived npm tokens). Confi
 │   ├── results.ts           # Result formatting and record processing
 │   ├── transaction.ts       # Transaction management
 │   ├── utils.ts             # Utility functions
+│   ├── retry.ts             # Scale-to-zero wake-up retry logic
 │   ├── pg-escape.ts         # Internal PostgreSQL escaping utilities (no external deps)
-│   ├── params.test.ts       # Parameter processing tests
-│   ├── query.test.ts        # Query execution tests
-│   ├── results.test.ts      # Result formatting tests
-│   ├── pg-escape.test.ts    # PostgreSQL escape function tests
-│   └── utils.test.ts        # Utility function tests
+│   ├── compat/              # Drop-in driver compatibility layers
+│   │   ├── index.ts         # Compat exports
+│   │   ├── pg.ts            # node-postgres (pg) compatible client/pool
+│   │   ├── mysql2.ts        # mysql2 compatible connection/pool
+│   │   └── errors.ts        # Data API → pg/mysql2 error mapping
+│   └── *.test.ts            # Colocated unit tests (params, query, results, utils, retry, pg-escape)
 ├── integration-tests/
 │   ├── setup.ts                      # Integration test setup
-│   ├── mysql.int.test.ts             # MySQL integration tests
-│   └── postgres.int.test.ts          # PostgreSQL integration tests (comprehensive)
+│   ├── INTEGRATION_TESTING.md         # Aurora Serverless v2 setup guide
+│   ├── mysql.int.test.ts             # MySQL native client tests
+│   ├── postgres.int.test.ts          # PostgreSQL native client tests (comprehensive)
+│   ├── pg-compat.int.test.ts          # pg compat layer tests
+│   ├── mysql2-compat.int.test.ts      # mysql2 compat layer tests
+│   └── {drizzle,kysely,knex}-*.int.test.ts  # ORM integration tests
+├── infra/                   # CloudFormation for integration-test Aurora clusters
 ├── dist/                    # Compiled output (gitignored, distributed in npm)
 │   ├── index.js             # Compiled main file
 │   ├── index.d.ts           # Type definitions
@@ -380,7 +472,7 @@ Publishing to npm uses OIDC Trusted Publishers (no long-lived npm tokens). Confi
 ├── tsconfig.json            # TypeScript configuration
 ├── tsconfig.eslint.json     # TypeScript ESLint configuration
 ├── vitest.config.mjs        # Vitest configuration (ES module, requires .mjs)
-├── package.json             # NPM configuration (main: dist/index.js, types: dist/index.d.ts)
+├── package.json             # NPM config (main: dist/index.js; subpath exports: ./compat, ./compat/pg, ./compat/mysql2, ./types)
 ├── package-lock.json        # Dependency lock file
 ├── README.md                # User documentation
 ├── CLAUDE.md                # AI development context (this file)
@@ -506,7 +598,9 @@ npm run build              # Compile TypeScript to JavaScript
 npm run build:watch        # Compile TypeScript in watch mode
 npm test                   # Build + run unit tests
 npm run test:unit          # Build + run unit tests
-npm run test:integration   # Build + run all integration tests
+npm run test:int:core      # Build + run native client integration tests (requires .env.local)
+npm run test:int:compat    # Build + run driver compat-layer integration tests
+npm run test:int:orm:kysely  # Build + run Kysely ORM integration tests (also :drizzle, :knex)
 npm run test-ci            # Build + lint + tests (for CI)
 npm run lint               # Run ESLint on TypeScript source
 vitest                     # Run tests in watch mode (interactive)

@@ -1,6 +1,6 @@
 {
   "name": "data-api-client",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "A lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,6 +19,11 @@
       "types": "./dist/compat/mysql2.d.ts",
       "import": "./dist/compat/mysql2.js",
       "require": "./dist/compat/mysql2.js"
+    },
+    "./compat/knex": {
+      "types": "./dist/compat/knex.d.ts",
+      "import": "./dist/compat/knex.js",
+      "require": "./dist/compat/knex.js"
     },
     "./compat": {
       "types": "./dist/compat/index.d.ts",
@@ -49,7 +54,9 @@
     "test:int:orm:drizzle": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts && vitest run integration-tests/drizzle-mysql.int.test.ts",
     "test:int:orm:drizzle:pg": "npm run build && vitest run integration-tests/drizzle-pg.int.test.ts",
     "test:int:orm:drizzle:mysql": "npm run build && vitest run integration-tests/drizzle-mysql.int.test.ts",
-    "test:int:orm:knex": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts",
+    "test:int:orm:knex": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts integration-tests/knex-pg.int.test.ts integration-tests/knex-mysql-querybuilder.int.test.ts integration-tests/knex-pg-querybuilder.int.test.ts",
+    "test:int:orm:knex:pg": "npm run build && vitest run integration-tests/knex-pg.int.test.ts integration-tests/knex-pg-querybuilder.int.test.ts",
+    "test:int:orm:knex:mysql": "npm run build && vitest run integration-tests/knex-mysql.int.test.ts integration-tests/knex-mysql-querybuilder.int.test.ts",
     "test-ci": "npm run build && eslint src && vitest run src/",
     "lint": "eslint src",
     "prepublishOnly": "npm run build"
@@ -96,14 +103,21 @@
     "sqlstring": "^2.3.2"
   },
   "peerDependencies": {
-    "@aws-sdk/client-rds-data": "^3.1048.0"
+    "@aws-sdk/client-rds-data": "^3.1048.0",
+    "knex": "^3.0.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-rds-data": {
+      "optional": true
+    },
+    "knex": {
       "optional": true
     }
   },
   "files": [
     "dist"
-  ]
+  ],
+  "engines": {
+    "node": ">=20"
+  }
 }

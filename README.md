@@ -3,52 +3,42 @@
 [![npm](https://img.shields.io/npm/v/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 [![npm](https://img.shields.io/npm/l/data-api-client.svg)](https://www.npmjs.com/package/data-api-client)
 
-> **Note:** Version 2.1.0 introduces mysql2 and pg compatibility layers with full ORM support! We welcome your feedback and bug reports. Please [open an issue](https://github.com/jeremydaly/data-api-client/issues) if you encounter any problems or have suggestions for improvement.
->
 > **Using v1.x?** See [README_v1.md](README_v1.md) for v1.x documentation.
 
-The **Data API Client** is a lightweight wrapper that simplifies working with the Amazon Aurora Serverless Data API by abstracting away the notion of field values. This abstraction annotates native JavaScript types supplied as input parameters, as well as converts annotated response data to native JavaScript types. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API. It also dramatically simplifies **transactions**, provides **automatic retry logic** for scale-to-zero clusters, and includes **compatibility layers** for mysql2 and pg with full **ORM support**.
-
-**Version 2.1** adds mysql2 and pg compatibility layers, automatic retry logic for cluster wake-ups, and verified support for Drizzle ORM and Kysely query builder.
-
-**Version 2.0** introduced support for the new [RDS Data API for Aurora Serverless v2 and Aurora provisioned database instances](https://aws.amazon.com/about-aws/whats-new/2024/09/amazon-aurora-mysql-rds-data-api/), enhanced [Amazon Aurora PostgreSQL-Compatible Edition](https://aws.amazon.com/about-aws/whats-new/2023/12/amazon-aurora-postgresql-rds-data-api/) support, migration to AWS SDK v3, full TypeScript implementation, and comprehensive PostgreSQL data type coverage including **automatic array handling**.
+The **Data API Client** is a lightweight wrapper that makes working with the Amazon Aurora Serverless Data API incredibly easy. The Data API makes you annotate every field value with its type, both going in and coming back, which gets old fast. This library handles that for you, mapping native JavaScript types to the Data API's format and back automatically. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API, with clean **transactions** and **automatic retry logic** for scale-to-zero clusters built in. It also gives you drop-in **compatibility layers** for mysql2 and pg, so you can plug the Data API into your favorite ORMs and query builders. Point **Drizzle**, **Kysely**, or **Knex** at it and keep writing the queries you already know.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
 
-## What's New in v2.1
+## What's New in v2.3
 
-- **Automatic Retry Logic**: Built-in retry handling for Aurora Serverless scale-to-zero wake-ups
-  - Smart detection of `DatabaseResumingException` with optimized retry delays
-  - Automatic handling of connection errors with exponential backoff
-  - Configurable and enabled by default
-- **mysql2 Compatibility Layer**: Drop-in replacement for the `mysql2/promise` library
-  - Full support for connection pools and transactions
-  - Works seamlessly with ORMs like Drizzle and Kysely
-- **pg Compatibility Layer**: Drop-in replacement for the `pg` (node-postgres) library
-  - Promise-based and callback-based APIs
-  - Compatible with ORMs and query builders
-- **ORM Support**: Tested and verified with popular ORMs:
-  - **Drizzle ORM**: Full support for both MySQL and PostgreSQL
-  - **Kysely**: Query builder support for both engines
+- **Knex support**: the `data-api-client/compat/knex` helpers let Knex run on the Data API for both MySQL and PostgreSQL.
+  - `createKnexMySQLClient()` and `createKnexPgClient()` return a custom Knex `client` wired to the Data API
+  - **Transactions** work: `db.transaction()` commits on success and rolls back when the callback throws. Nested transactions are rejected, since the Data API has no `SAVEPOINT` primitive.
+  - The common query-builder surface is covered by integration tests for both engines: selects, the `where` family, joins, aggregates, ordering/pagination, unions, subqueries, CTEs, `insert`/`update`/`del`, `returning`, `increment`/`decrement`, and `onConflict().merge()` upserts
+  - `knex` is an optional peer dependency
+- Fixes two latent compatibility-layer bugs that also affected non-Knex callers: pg parameter binding via the config-object callback form, and mysql2 callback parsing
 
-## What's New in v2.0
+See the [Knex section](#knex-query-builder) for usage.
 
-- **AWS SDK v3**: Migrated from AWS SDK v2 to v3 for smaller bundle sizes and better tree-shaking
-- **TypeScript**: Full TypeScript implementation with comprehensive type definitions
-- **PostgreSQL Array Support**: Automatic conversion of PostgreSQL arrays to native JavaScript arrays in query results
-- **Comprehensive Data Type Coverage**: Extensive support for PostgreSQL data types including:
-  - All numeric types (SMALLINT, INT, BIGINT, DECIMAL, NUMERIC, REAL, DOUBLE PRECISION)
-  - String types (CHAR, VARCHAR, TEXT)
-  - Boolean, Date/Time types (DATE, TIME, TIMESTAMP, TIMESTAMPTZ)
-  - Binary data (BYTEA)
-  - JSON and JSONB with nested structures
-  - UUID with type casting support
-  - Network types (INET, CIDR)
-  - Range types (INT4RANGE, NUMRANGE, TSTZRANGE)
-  - Arrays of all supported types
-- **Modern Build System**: TypeScript compilation with ES6+ output
-- **Enhanced Type Casting**: Improved support for PostgreSQL type casting with inline (`::type`) and parameter-based casting
-- **Better Error Handling**: More informative error messages and validation
+## Changelog
+
+### v2.2
+
+- Dependency updates, including a raised `@aws-sdk/client-rds-data` peer dependency floor
+
+### v2.1
+
+- **mysql2** and **pg** compatibility layers: drop-in replacements for those drivers, with connection pools, transactions, and both Promise and callback APIs
+- **Automatic retry logic** for Aurora Serverless scale-to-zero wake-ups (`DatabaseResumingException` and transient connection errors), configurable and enabled by default
+- Verified ORM support for **Drizzle** and **Kysely**
+
+### v2.0
+
+- Migrated to **AWS SDK v3** for smaller bundles and better tree-shaking
+- Full **TypeScript** implementation with comprehensive type definitions
+- **PostgreSQL array** results automatically converted to native JavaScript arrays
+- Comprehensive PostgreSQL data type coverage: numeric, string, boolean, date/time, `BYTEA`, JSON/JSONB, UUID, network (INET/CIDR), range, and arrays of all supported types
+- Inline (`::type`) and parameter-based type casting, with more informative error messages
 
 ## Simple Examples
 
@@ -197,7 +187,7 @@ The AWS Data API offers a [built-in JSON format option](https://docs.aws.amazon.
 
 **No Additional Limitations:** AWS's JSON support requires unique column names and has a 10MB response limit. The Data API Client works with any column configuration and imposes no additional size restrictions.
 
-In summary, AWS's JSON support is a basic convenience feature, while the **Data API Client** provides true type intelligence, format flexibility, and seamless handling of complex PostgreSQL features that the native Data API doesn't support well.
+AWS's JSON support is a basic convenience feature. The **Data API Client** provides true type intelligence, format flexibility, and seamless handling of complex PostgreSQL features that the native Data API doesn't support well.
 
 ## Installation and Setup
 
@@ -855,10 +845,78 @@ const db = new Kysely<Database>({
 const users = await db.selectFrom('users').selectAll().where('id', '=', 123).execute()
 ```
 
+#### Knex Query Builder
+
+Knex doesn't accept an injected pool like Drizzle and Kysely. It constructs its own
+driver internally, so the `data-api-client/compat/knex` helpers return a custom Knex
+`client` class wired to the Data API, which you pass as `client`:
+
+**MySQL with Knex:**
+
+```typescript
+import knex from 'knex'
+import { createKnexMySQLClient } from 'data-api-client/compat/knex'
+
+const db = knex({
+  client: createKnexMySQLClient({
+    resourceArn: 'arn:...',
+    secretArn: 'arn:...',
+    database: 'myDatabase'
+  }),
+  connection: {}
+})
+
+// Use Knex normally
+const users = await db('users').where('id', 123).select('*')
+```
+
+**PostgreSQL with Knex:**
+
+```typescript
+import knex from 'knex'
+import { createKnexPgClient } from 'data-api-client/compat/knex'
+
+const db = knex({
+  client: createKnexPgClient({
+    resourceArn: 'arn:...',
+    secretArn: 'arn:...',
+    database: 'myDatabase'
+  }),
+  connection: {}
+})
+
+// Use Knex normally
+const id = await db('users').insert({ name: 'Alice' }).returning('id')
+```
+
+> **Note:** `knex` is an optional peer dependency. Install it alongside `data-api-client`
+> to use these helpers.
+
+Knex transactions work. The compat layer intercepts the `BEGIN`/`COMMIT`/`ROLLBACK`
+SQL that Knex issues and maps it to the Data API transaction lifecycle:
+
+```typescript
+await db.transaction(async (trx) => {
+  const [userId] = await trx('users').insert({ name: 'Alice' }).returning('id')
+  await trx('posts').insert({ user_id: userId, title: 'Hello' })
+}) // commits on success, rolls back if the callback throws
+```
+
+> **Nested transactions are not supported.** They require SQL `SAVEPOINT`s, which the RDS
+> Data API has no primitive for, so a nested `trx.transaction(...)` throws. A single
+> top-level transaction works as shown above.
+
+The common query-builder syntax is covered by integration tests for both engines:
+selects/`distinct`/`pluck`/`first`, the `where` family (`whereIn`, `whereNull`,
+`whereBetween`, `whereExists`, `whereRaw`, and so on), joins, `groupBy`/`having`/aggregates,
+`orderBy`/`limit`/`offset`, unions, subqueries, CTEs (`with`), `insert`/`update`/`del`,
+`returning` (PostgreSQL), `increment`/`decrement`, and `onConflict().merge()` upserts.
+Streaming via `.stream()` is not supported, since the Data API has no cursor API.
+
 **Benefits of Compatibility Layers:**
 
 - **Zero code changes** when migrating from mysql2 or pg
-- **Full ORM support** (Drizzle, Kysely)
+- **Full ORM support** (Drizzle, Kysely, Knex)
 - **Automatic retry logic** for cluster wake-ups
 - **Connection pooling simulation** (getConnection, release)
 - **Both Promise and callback APIs** supported
@@ -919,7 +977,7 @@ await data.query('INSERT INTO products (tags) VALUES (ARRAY[:tag1, :tag2, :tag3]
 })
 ```
 
-Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application. `NULL` elements inside arrays round-trip correctly — e.g. `'{1,NULL,3}'::int[]` deserializes to `[1, null, 3]`.
+Despite these input limitations, **all array results are automatically converted to native JavaScript arrays**, making it easy to work with PostgreSQL array data in your application. `NULL` elements inside arrays round-trip correctly. For example, `'{1,NULL,3}'::int[]` deserializes to `[1, null, 3]`.
 
 ## PostgreSQL Data Type Support
 

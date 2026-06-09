@@ -13,6 +13,7 @@ import * as pgEscape from '../pg-escape'
 import { init } from '../client'
 import type { DataAPIClientConfig, DataAPIClient, QueryResult as DataAPIQueryResult } from '../types'
 import { mapToPostgresError, type PostgresError } from './errors'
+import { classifyTransactionControl, NESTED_TRANSACTION_MESSAGE } from './transaction-sql'
 
 // Pg-compatible types
 export interface PgQueryResult<R = any> {
@@ -150,7 +151,6 @@ function convertPgPlaceholders(sql: string, params: any[] = []): { sql: string; 
  * Infer SQL command type from query
  */
 function inferCommand(sql: string): string {
-  const match = sql.trim().split(/\s+/)[0]?.toUpperCase()
   const knownCommands = [
     'SELECT',
     'INSERT',
@@ -163,7 +163,24 @@ function inferCommand(sql: string): string {
     'GRANT',
     'REVOKE'
   ]
-  return knownCommands.includes(match) ? match : 'QUERY'
+  const first = sql.trim().split(/\s+/)[0]?.toUpperCase()
+  if (first && knownCommands.includes(first)) return first
+
+  // CTEs start with WITH [RECURSIVE]; the effective command is the primary
+  // statement's verb (e.g. `WITH x AS (...) SELECT ...` is a SELECT). Find the
+  // first SELECT/INSERT/UPDATE/DELETE keyword at parenthesis depth 0 — the CTE
+  // bodies are nested in parens, so their verbs are skipped.
+  if (first === 'WITH') {
+    let depth = 0
+    const re = /\(|\)|\b(SELECT|INSERT|UPDATE|DELETE)\b/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(sql)) !== null) {
+      if (m[0] === '(') depth++
+      else if (m[0] === ')') depth--
+      else if (depth === 0) return m[1].toUpperCase()
+    }
+  }
+  return 'QUERY'
 }
 
 /**
@@ -263,46 +280,38 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
       // Similarly, sqlOrConfig.types is ignored as the Data API handles type parsing.
     }
 
-    // Check for transaction control commands
-    const upperSql = sql.trim().toUpperCase()
-
-    // BEGIN transaction
-    if (upperSql === 'BEGIN' || upperSql.startsWith('BEGIN ')) {
-      const txResult = await core.beginTransaction()
-      transactionId = txResult.transactionId
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'BEGIN',
-        fields: []
-      }
-    }
-
-    // COMMIT transaction
-    if (upperSql === 'COMMIT') {
-      if (transactionId) {
-        await core.commitTransaction({ transactionId } as any)
-        transactionId = undefined
-      }
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'COMMIT',
-        fields: []
-      }
-    }
-
-    // ROLLBACK transaction
-    if (upperSql === 'ROLLBACK') {
-      if (transactionId) {
-        await core.rollbackTransaction({ transactionId } as any)
-        transactionId = undefined
-      }
-      return {
-        rows: [] as R[],
-        rowCount: 0,
-        command: 'ROLLBACK',
-        fields: []
+    // Intercept transaction-control statements (BEGIN/COMMIT/ROLLBACK/...) and
+    // map them to the Data API transaction lifecycle, threading transactionId.
+    const txn = classifyTransactionControl(sql)
+    if (txn) {
+      const empty = (command: string): PgQueryResult<R> => ({ rows: [] as R[], rowCount: 0, command, fields: [] })
+      switch (txn.kind) {
+        case 'begin': {
+          const txResult = await core.beginTransaction()
+          transactionId = txResult.transactionId
+          return empty('BEGIN')
+        }
+        case 'commit': {
+          if (transactionId) {
+            await core.commitTransaction({ transactionId } as any)
+            transactionId = undefined
+          }
+          return empty('COMMIT')
+        }
+        case 'rollback': {
+          if (transactionId) {
+            await core.rollbackTransaction({ transactionId } as any)
+            transactionId = undefined
+          }
+          return empty('ROLLBACK')
+        }
+        case 'setTransaction':
+          // Isolation-level prefix; the Data API uses default isolation. No-op.
+          return empty('SET')
+        case 'savepoint':
+        case 'release':
+        case 'rollbackTo':
+          throw new Error(NESTED_TRANSACTION_MESSAGE)
       }
     }
 
@@ -397,8 +406,11 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
         throw new Error('Query streams are not supported by RDS Data API')
       }
 
-      // Determine if callback style or promise style
-      let params: any[] = []
+      // Determine if callback style or promise style.
+      // Leave params undefined unless an explicit values array is supplied, so
+      // that values embedded in a config object (e.g. query({ text, values }, cb)
+      // as Knex calls it) are not clobbered by an empty default in executeQuery.
+      let params: any[] | undefined
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
@@ -566,8 +578,11 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
         throw new Error('Query streams are not supported by RDS Data API')
       }
 
-      // Determine if callback style or promise style
-      let params: any[] = []
+      // Determine if callback style or promise style.
+      // Leave params undefined unless an explicit values array is supplied, so
+      // that values embedded in a config object (e.g. query({ text, values }, cb)
+      // as Knex calls it) are not clobbered by an empty default in executeQuery.
+      let params: any[] | undefined
       let cb: ((err: Error | null, result: PgQueryResult<R>) => void) | undefined
 
       if (typeof sqlOrConfig === 'object' && 'text' in sqlOrConfig) {
