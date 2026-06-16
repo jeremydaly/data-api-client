@@ -5,22 +5,31 @@
 
 > **Using v1.x?** See [README_v1.md](README_v1.md) for v1.x documentation.
 
-The **Data API Client** is a lightweight wrapper that makes working with the Amazon Aurora Serverless Data API incredibly easy. The Data API makes you annotate every field value with its type, both going in and coming back, which gets old fast. This library handles that for you, mapping native JavaScript types to the Data API's format and back automatically. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API, with clean **transactions** and **automatic retry logic** for scale-to-zero clusters built in. It also gives you drop-in **compatibility layers** for mysql2 and pg, so you can plug the Data API into your favorite ORMs and query builders. Point **Drizzle**, **Kysely**, **Knex**, or **Prisma** at it and keep writing the queries you already know.
+The **Data API Client** is a lightweight wrapper that makes using the Amazon Aurora Serverless Data API with your favorite ORMs and query builders incredibly easy. It ships with drop-in **compatibility layers** for the `mysql2` and `pg` drivers, plus dedicated adapters for **Knex** and **Prisma**. Point **Drizzle**, **Kysely**, **Knex**, or **Prisma** at the Data API and keep writing the queries you already know, with no changes to your models or query code.
 
-For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
+Prefer raw SQL? The client gives you a clean, [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html)-style interface and handles the tedious part for you. The Data API makes you annotate every field value with its type, both going in and coming back, which gets old fast. This library maps native JavaScript types to the Data API's format and back automatically.
 
-## What's New in v2.3
+Either way, you get clean **transactions** and **automatic retry logic** for scale-to-zero clusters built in.
 
-- **Knex support**: the `data-api-client/compat/knex` helpers let Knex run on the Data API for both MySQL and PostgreSQL.
-  - `createKnexMySQLClient()` and `createKnexPgClient()` return a custom Knex `client` wired to the Data API
-  - **Transactions** work: `db.transaction()` commits on success and rolls back when the callback throws. Nested transactions are rejected, since the Data API has no `SAVEPOINT` primitive.
-  - The common query-builder surface is covered by integration tests for both engines: selects, the `where` family, joins, aggregates, ordering/pagination, unions, subqueries, CTEs, `insert`/`update`/`del`, `returning`, `increment`/`decrement`, and `onConflict().merge()` upserts
-  - `knex` is an optional peer dependency
-- Fixes two latent compatibility-layer bugs that also affected non-Knex callers: pg parameter binding via the config-object callback form, and mysql2 callback parsing
+For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html).
 
-See the [Knex section](#knex-query-builder) for usage.
+## What's New in v2.4
+
+- **Prisma support**: the `data-api-client/compat/prisma` adapter lets Prisma Client run on the Data API for both PostgreSQL and MySQL.
+  - `createPrismaPgAdapter()` and `createPrismaMySQLAdapter()` return a Prisma 7 driver adapter you hand straight to `new PrismaClient({ adapter })`
+  - The full Prisma Client query API is covered for both engines: CRUD, aggregation and `groupBy`, the filter operators, pagination and cursors, `select`/`include`/`omit`, nested writes, relation filters, atomic number updates, JSON, `Decimal`/`BigInt`/`DateTime`, PostgreSQL scalar arrays, raw queries, and transactions
+  - **Transactions** map to the native Data API lifecycle; nested savepoints are rejected, same as the other layers
+  - **Migrations** run through Prisma's schema engine, which needs a direct connection the Data API doesn't provide. Point it at your Aurora cluster endpoint (the same split Neon and PlanetScale use) or generate the SQL offline. See the Prisma section for details.
+  - `@prisma/driver-adapter-utils` is an optional peer dependency
+
+See the [Prisma section](#prisma) for usage.
 
 ## Changelog
+
+### v2.3
+
+- **Knex support**: `data-api-client/compat/knex` (`createKnexMySQLClient()` / `createKnexPgClient()`) runs Knex on the Data API for MySQL and PostgreSQL, including transactions (nested transactions rejected, since the Data API has no `SAVEPOINT` primitive). `knex` is an optional peer dependency. See the [Knex section](#knex-query-builder).
+- Fixed two latent compatibility-layer bugs that also affected non-Knex callers: pg parameter binding via the config-object callback form, and mysql2 callback parsing
 
 ### v2.2
 
@@ -222,7 +231,7 @@ Below is a table containing all of the possible configuration options for the `d
 
 ### Automatic Retry Logic
 
-Version 2.1 includes built-in retry logic to handle Aurora Serverless scale-to-zero cluster wake-ups automatically. When your cluster is paused and needs to resume, the client will automatically retry your queries with optimized delays.
+Version 2.1 introduced built-in retry logic to handle Aurora Serverless scale-to-zero cluster wake-ups automatically. When your cluster is paused and needs to resume, the client will automatically retry your queries with optimized delays.
 
 **Features:**
 
@@ -574,7 +583,7 @@ const data = dataApiClient({
 
 ## mysql2 and pg Compatibility Layers
 
-Version 2.1 introduces compatibility layers that allow you to use the Data API Client as a drop-in replacement for popular database libraries. This makes it easy to migrate existing applications or use ORMs without modification.
+Version 2.1 introduced compatibility layers that allow you to use the Data API Client as a drop-in replacement for popular database libraries. This makes it easy to migrate existing applications or use ORMs without modification.
 
 ### mysql2 Compatibility
 
@@ -915,11 +924,11 @@ Streaming via `.stream()` is not supported, since the Data API has no cursor API
 
 #### Prisma
 
-A drop-in Prisma 7 driver adapter so Prisma Client runs over the Aurora Data API — for both PostgreSQL and MySQL.
+A drop-in Prisma 7 driver adapter so Prisma Client runs over the Aurora Data API, for both PostgreSQL and MySQL.
 
 **Install:**
 
-You need `@prisma/client` and `prisma` installed in your project. The adapter uses `@prisma/driver-adapter-utils`, which is an optional peer dependency of `data-api-client` — install it alongside:
+You need `@prisma/client` and `prisma` installed in your project. The adapter uses `@prisma/driver-adapter-utils`, which is an optional peer dependency of `data-api-client`. Install it alongside:
 
 ```bash
 npm install @prisma/client prisma @prisma/driver-adapter-utils
@@ -940,20 +949,20 @@ const adapter = createPrismaPgAdapter({
 const prisma = new PrismaClient({ adapter })
 ```
 
-Use `createPrismaMySQLAdapter` for MySQL — it takes the same config shape.
+Use `createPrismaMySQLAdapter` for MySQL. It takes the same config shape.
 
 **Limitations:**
 
 - **Nested transactions** are not supported. They require SQL `SAVEPOINT`s, which the RDS Data API has no primitive for. Top-level interactive transactions (via `prisma.$transaction()`) work correctly.
-- **Array parameters**: the Data API cannot bind array parameters directly. The Prisma adapter handles this for PostgreSQL native array columns by rewriting array values to `ARRAY[...]` constructor syntax automatically. The underlying Data API constraint remains — the rewrite is done by the adapter before the query reaches the wire.
+- **Array parameters**: the Data API cannot bind array parameters directly. The Prisma adapter handles this for PostgreSQL native array columns by rewriting array values to `ARRAY[...]` constructor syntax automatically. The underlying Data API constraint remains; the rewrite happens in the adapter before the query reaches the wire.
 
 **Migrations:**
 
-Prisma driver adapters cover the **runtime query path only**. Prisma's Schema Engine (`prisma migrate`, `db push`, `db pull`) requires a direct database connection URL, which the Data API does not provide. This is the same split every serverless driver has — Neon uses a `directUrl`, PlanetScale uses a connection string — driver adapters are for runtime; schema operations need a real connection.
+Prisma driver adapters cover the **runtime query path only**. Prisma's Schema Engine (`prisma migrate`, `db push`, `db pull`) requires a direct database connection URL, which the Data API does not provide. This is the same split every serverless driver has. Neon uses a `directUrl`, PlanetScale uses a connection string, and driver adapters handle runtime while schema operations need a real connection.
 
-The recommended approach: Aurora Serverless v2 also exposes a standard PostgreSQL/MySQL cluster endpoint. Point Prisma's migration `url` in `prisma.config.ts` at that direct Aurora endpoint — exactly like Neon's `directUrl` pattern — and use the Data API adapter at runtime only. This requires network access to the cluster endpoint (in-VPC CI, a bastion/tunnel/VPN, or a publicly accessible dev cluster).
+The recommended approach: Aurora Serverless v2 also exposes a standard PostgreSQL/MySQL cluster endpoint. Point Prisma's migration `url` in `prisma.config.ts` at that direct Aurora endpoint, exactly like Neon's `directUrl` pattern, and use the Data API adapter at runtime only. This requires network access to the cluster endpoint (in-VPC CI, a bastion/tunnel/VPN, or a publicly accessible dev cluster).
 
-If direct endpoint access is not available: generate migration SQL offline with `prisma migrate diff` (no live database connection needed — use schema-to-schema diffs to avoid the shadow-database requirement) and apply it over the Data API adapter.
+If direct endpoint access is not available: generate migration SQL offline with `prisma migrate diff` (no live database connection needed; use schema-to-schema diffs to avoid the shadow-database requirement) and apply it over the Data API adapter.
 
 **Benefits of Compatibility Layers:**
 
@@ -1023,7 +1032,7 @@ Despite these input limitations, **all array results are automatically converted
 
 ## PostgreSQL Data Type Support
 
-Version 2.0 provides comprehensive support for PostgreSQL data types:
+Version 2.0 introduced comprehensive support for PostgreSQL data types:
 
 ### Numeric Types
 
@@ -1149,7 +1158,7 @@ await data.query('INSERT INTO bookings (date_range) VALUES (:range::INT4RANGE)',
 
 ## TypeScript Support
 
-Version 2.0 is written in TypeScript and provides comprehensive type definitions:
+Version 2.x is written in TypeScript and provides comprehensive type definitions:
 
 ```typescript
 import dataApiClient from 'data-api-client'
@@ -1186,6 +1195,12 @@ The RDS Data API does **not support binding array parameters** directly. Attempt
 
 Despite parameter limitations, array **results** work great! The Data API Client automatically converts PostgreSQL arrays in query results to native JavaScript arrays.
 
+### Large result sets are capped at ~1 MB
+
+The Data API returns at most about 1 MB of data per statement, and it has no server-side pagination. There's no cursor or `nextToken` to fetch the next chunk, so a single query that returns more than ~1 MB fails instead of paging.
+
+The fix is to page the query yourself. Add a `LIMIT` and walk through the rows, and prefer keyset pagination (a `WHERE id > :lastId ORDER BY id LIMIT :pageSize` style) over `OFFSET`, which gets slow on deep pages. If you're using one of the ORM or query-builder layers, you already have this: Drizzle, Kysely, Knex, and Prisma all expose `take`/`skip`/`cursor`, so page the way you normally would and you won't hit the cap.
+
 ### Some Advanced Types Have Limitations
 
 - **MACADDR**: Not supported by the Data API
@@ -1198,27 +1213,19 @@ Batch operations don't return `numberOfRecordsUpdated` for UPDATE/DELETE stateme
 
 ## Enabling Data API
 
-In order to use the Data API, you must enable it on your Aurora Serverless Cluster and create a Secret. You also must grant your execution environment a number of permissions as outlined in the following sections.
+To use the Data API you need three things:
 
-### Enable Data API on your Aurora Cluster
+1. **The Data API enabled on your Aurora cluster.** It's supported on Aurora Serverless v2 and Aurora provisioned clusters (Aurora Serverless v1 uses the original Data API). You can enable it when you create the cluster or by modifying an existing one.
+2. **A Secrets Manager secret** with the database credentials. The Data API reads the secret instead of you passing credentials on every call.
+3. **IAM permissions** for your execution environment (covered below).
 
-![Enable Data API in Network & Security settings of your cluster](https://user-images.githubusercontent.com/2053544/58768968-79ee4300-8570-11e9-9266-1433182e0db2.png)
+The AWS console and the list of supported engines change often, so rather than walk through a screenshot tour that goes stale, follow the official docs. They stay current:
 
-You need to modify your Aurora cluster by clicking "ACTIONS" and then "Modify Cluster". Check the Data API box in the _Network & Security_ section and you're good to go. This works for Aurora Serverless v1, Aurora Serverless v2, and Aurora provisioned clusters.
+- [Enabling the RDS Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.enabling.html)
+- [Authorizing access to the Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.access.html) (storing credentials in Secrets Manager and the IAM setup)
+- [Region and version availability](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.regions.html)
 
-### Set up a secret in the Secrets Manager
-
-Next you need to set up a secret in the Secrets Manager. This is actually quite straightforward. User name, password, encryption key (the default is probably fine for you), and select the database you want to access with the secret.
-
-![Enter database credentials and select database to access](https://user-images.githubusercontent.com/2053544/58768974-912d3080-8570-11e9-8878-636dfb742b00.png)
-
-Next we give it a name, this is important, because this will be part of the arn when we set up permissions later. You can give it a description as well so you don't forget what this secret is about when you look at it in a few weeks.
-
-![Give your secret a name and add a description](https://user-images.githubusercontent.com/2053544/58768984-a7d38780-8570-11e9-8b21-199db5548c73.png)
-
-You can then configure your rotation settings, if you want, and then you review and create your secret. Then you can click on your newly created secret and grab the arn, we're gonna need that next.
-
-![Click on your secret to get the arn.](https://user-images.githubusercontent.com/2053544/58768989-bae65780-8570-11e9-94fb-51f6fa7d34bf.png)
+You'll need your cluster's ARN and the secret's ARN to configure the client. See [Configuration Options](#configuration-options).
 
 ### Required Permissions
 
@@ -1230,7 +1237,6 @@ In order to use the Data API, your execution environment requires several IAM pe
 Statement:
   - Effect: 'Allow'
     Action:
-      - 'rds-data:ExecuteSql'
       - 'rds-data:ExecuteStatement'
       - 'rds-data:BatchExecuteStatement'
       - 'rds-data:BeginTransaction'
@@ -1250,7 +1256,6 @@ Statement:
   {
     "Effect": "Allow",
     "Action": [
-      "rds-data:ExecuteSql",
       "rds-data:ExecuteStatement",
       "rds-data:BatchExecuteStatement",
       "rds-data:BeginTransaction",
