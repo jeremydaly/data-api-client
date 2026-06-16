@@ -99,17 +99,22 @@ export const prepareParams = (
 const omit = <T extends Record<string, any>>(obj: T, values: string[]): Partial<T> =>
   Object.keys(obj).reduce((acc, x) => (values.includes(x) ? acc : Object.assign(acc, { [x]: obj[x] })), {} as Partial<T>)
 
+// Known optional fields on a named parameter (beyond required `name` and `value`).
+const NAMED_PARAM_OPTIONAL_KEYS = new Set(['cast', 'typeHint'])
+
+// Returns true when every key in the object is either `name`, `value`, or a known optional field.
+const isNamedParam = (p: object): boolean => {
+  if (!('name' in p) || typeof (p as any).value === 'undefined') return false
+  return Object.keys(p).every((k) => k === 'name' || k === 'value' || NAMED_PARAM_OPTIONAL_KEYS.has(k))
+}
+
 // Normalize parameters so that they are all in standard format
 export const normalizeParams = (params: Parameters[]): (NamedParameter | NamedParameter[])[] =>
   params.reduce(
     (acc: (NamedParameter | NamedParameter[])[], p: Parameters) =>
       Array.isArray(p)
         ? acc.concat([normalizeParams(p as unknown as Parameters[]) as unknown as NamedParameter[]])
-        : (Object.keys(p).length === 2 && 'name' in p && typeof (p as any).value !== 'undefined') ||
-          (Object.keys(p).length === 3 &&
-            'name' in p &&
-            typeof (p as any).value !== 'undefined' &&
-            'cast' in p)
+        : isNamedParam(p as object)
         ? acc.concat(p as unknown as NamedParameter)
         : acc.concat(...splitParams(p as Record<string, ParameterValue>)),
     []
@@ -145,7 +150,7 @@ export const processParams = (
             const regex = new RegExp(':' + p.name + '\\b', 'g')
             sql = sql.replace(regex, `:${p.name}::jsonb`)
           }
-          acc.push(formatParam(p.name, p.value, formatOptions))
+          acc.push(formatParam(p.name, p.value, formatOptions, p.typeHint))
         } else if (row === 0) {
           const regex = new RegExp('::' + p.name + '\\b', 'g')
           // Use engine-specific identifier escaping
@@ -164,8 +169,12 @@ export const processParams = (
 }
 
 // Converts parameter to the name/value format
-export const formatParam = (n: string, v: ParameterValue, formatOptions: Required<FormatOptions>): FormattedParameter =>
-  formatType(n, v, getType(v), getTypeHint(v), formatOptions)
+export const formatParam = (
+  n: string,
+  v: ParameterValue,
+  formatOptions: Required<FormatOptions>,
+  explicitTypeHint?: string
+): FormattedParameter => formatType(n, v, getType(v), explicitTypeHint ?? getTypeHint(v), formatOptions)
 
 // Converts object params into name/value format
 export const splitParams = (p: Record<string, ParameterValue>): NamedParameter[] =>

@@ -16,6 +16,7 @@ export { createMySQLConnection, createMySQLPool } from './mysql2'
 export type { Connection, Pool, PoolConnection, MySQL2QueryResult } from './mysql2'
 
 export { createKnexMySQLClient, createKnexPgClient } from './knex'
+export { createPrismaPgAdapter, createPrismaMySQLAdapter } from './prisma'
 
 export { mapToPostgresError, mapToMySQLError } from './errors'
 export type { PostgresError, MySQLError } from './errors'

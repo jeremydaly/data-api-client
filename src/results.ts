@@ -67,7 +67,7 @@ export const formatRecords = (
             if (field.isNull === true) {
               return hydrate // object if hydrate, else array
                 ? Object.assign(acc, { [fmap[i].label!]: null })
-                : acc.concat(null)
+                : [...acc, null]
 
               // If the field is mapped, return the mapped field
             } else if (fmap[i] && fmap[i].field) {
@@ -76,7 +76,7 @@ export const formatRecords = (
               const value = formatRecordValue((field as any)[fmap[i].field!], fmap[i].typeName, formatOptions)
               return hydrate // object if hydrate, else array
                 ? Object.assign(acc, { [fmap[i].label!]: value })
-                : acc.concat(value)
+                : [...acc, value]
 
               // Else discover the field type
             } else {
@@ -93,7 +93,7 @@ export const formatRecords = (
               const value = formatRecordValue((field as any)[fmap[i].field!], fmap[i].typeName, formatOptions)
               return hydrate // object if hydrate, else array
                 ? Object.assign(acc, { [fmap[i].label!]: value })
-                : acc.concat(value)
+                : [...acc, value]
             }
           },
           hydrate ? {} : []

@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated-mysql-coverage"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model CovUser {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique @db.VarChar(191)
+  name      String?   @db.VarChar(191)
+  age       Int?
+  score     Decimal?  @db.Decimal(10, 2)
+  balance   BigInt?
+  active    Boolean   @default(true)
+  category  String?   @db.VarChar(191)
+  meta      Json?
+  createdAt DateTime  @default(now())
+  posts     CovPost[]
+
+  @@map("prisma_cov_user")
+}
+
+model CovPost {
+  id       Int     @id @default(autoincrement())
+  title    String  @db.VarChar(191)
+  views    Int     @default(0)
+  authorId Int
+  author   CovUser @relation(fields: [authorId], references: [id])
+
+  @@map("prisma_cov_post")
+}

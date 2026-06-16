@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated-pg-coverage"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model CovUser {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  name      String?
+  age       Int?
+  score     Decimal?
+  balance   BigInt?
+  active    Boolean   @default(true)
+  category  String?
+  tags      String[]
+  meta      Json?
+  createdAt DateTime  @default(now())
+  posts     CovPost[]
+
+  @@map("prisma_cov_user")
+}
+
+model CovPost {
+  id       Int      @id @default(autoincrement())
+  title    String
+  views    Int      @default(0)
+  authorId Int?
+  author   CovUser? @relation(fields: [authorId], references: [id])
+
+  @@map("prisma_cov_post")
+}

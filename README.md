@@ -5,7 +5,7 @@
 
 > **Using v1.x?** See [README_v1.md](README_v1.md) for v1.x documentation.
 
-The **Data API Client** is a lightweight wrapper that makes working with the Amazon Aurora Serverless Data API incredibly easy. The Data API makes you annotate every field value with its type, both going in and coming back, which gets old fast. This library handles that for you, mapping native JavaScript types to the Data API's format and back automatically. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API, with clean **transactions** and **automatic retry logic** for scale-to-zero clusters built in. It also gives you drop-in **compatibility layers** for mysql2 and pg, so you can plug the Data API into your favorite ORMs and query builders. Point **Drizzle**, **Kysely**, or **Knex** at it and keep writing the queries you already know.
+The **Data API Client** is a lightweight wrapper that makes working with the Amazon Aurora Serverless Data API incredibly easy. The Data API makes you annotate every field value with its type, both going in and coming back, which gets old fast. This library handles that for you, mapping native JavaScript types to the Data API's format and back automatically. It's basically a [DocumentClient](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html) for the Data API, with clean **transactions** and **automatic retry logic** for scale-to-zero clusters built in. It also gives you drop-in **compatibility layers** for mysql2 and pg, so you can plug the Data API into your favorite ORMs and query builders. Point **Drizzle**, **Kysely**, **Knex**, or **Prisma** at it and keep writing the queries you already know.
 
 For more information about the Aurora Serverless Data API, you can review the [official documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) or read [Aurora Serverless Data API: An (updated) First Look](https://www.jeremydaly.com/aurora-serverless-data-api-a-first-look/) for some more insights on performance.
 
@@ -913,10 +913,52 @@ selects/`distinct`/`pluck`/`first`, the `where` family (`whereIn`, `whereNull`,
 `returning` (PostgreSQL), `increment`/`decrement`, and `onConflict().merge()` upserts.
 Streaming via `.stream()` is not supported, since the Data API has no cursor API.
 
+#### Prisma
+
+A drop-in Prisma 7 driver adapter so Prisma Client runs over the Aurora Data API — for both PostgreSQL and MySQL.
+
+**Install:**
+
+You need `@prisma/client` and `prisma` installed in your project. The adapter uses `@prisma/driver-adapter-utils`, which is an optional peer dependency of `data-api-client` — install it alongside:
+
+```bash
+npm install @prisma/client prisma @prisma/driver-adapter-utils
+```
+
+**Usage (PostgreSQL):**
+
+```typescript
+import { PrismaClient } from '@prisma/client'
+import { createPrismaPgAdapter } from 'data-api-client/compat/prisma'
+
+const adapter = createPrismaPgAdapter({
+  secretArn: process.env.SECRET_ARN,
+  resourceArn: process.env.RESOURCE_ARN,
+  database: 'mydb'
+})
+
+const prisma = new PrismaClient({ adapter })
+```
+
+Use `createPrismaMySQLAdapter` for MySQL — it takes the same config shape.
+
+**Limitations:**
+
+- **Nested transactions** are not supported. They require SQL `SAVEPOINT`s, which the RDS Data API has no primitive for. Top-level interactive transactions (via `prisma.$transaction()`) work correctly.
+- **Array parameters**: the Data API cannot bind array parameters directly. The Prisma adapter handles this for PostgreSQL native array columns by rewriting array values to `ARRAY[...]` constructor syntax automatically. The underlying Data API constraint remains — the rewrite is done by the adapter before the query reaches the wire.
+
+**Migrations:**
+
+Prisma driver adapters cover the **runtime query path only**. Prisma's Schema Engine (`prisma migrate`, `db push`, `db pull`) requires a direct database connection URL, which the Data API does not provide. This is the same split every serverless driver has — Neon uses a `directUrl`, PlanetScale uses a connection string — driver adapters are for runtime; schema operations need a real connection.
+
+The recommended approach: Aurora Serverless v2 also exposes a standard PostgreSQL/MySQL cluster endpoint. Point Prisma's migration `url` in `prisma.config.ts` at that direct Aurora endpoint — exactly like Neon's `directUrl` pattern — and use the Data API adapter at runtime only. This requires network access to the cluster endpoint (in-VPC CI, a bastion/tunnel/VPN, or a publicly accessible dev cluster).
+
+If direct endpoint access is not available: generate migration SQL offline with `prisma migrate diff` (no live database connection needed — use schema-to-schema diffs to avoid the shadow-database requirement) and apply it over the Data API adapter.
+
 **Benefits of Compatibility Layers:**
 
 - **Zero code changes** when migrating from mysql2 or pg
-- **Full ORM support** (Drizzle, Kysely, Knex)
+- **Full ORM support** (Drizzle, Kysely, Knex, Prisma)
 - **Automatic retry logic** for cluster wake-ups
 - **Connection pooling simulation** (getConnection, release)
 - **Both Promise and callback APIs** supported
