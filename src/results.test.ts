@@ -35,6 +35,33 @@ describe('formatRecords', () => {
   })
 })
 
+describe('formatRecords - hydrate:false with PostgreSQL array column (regression)', () => {
+  const formatOptions = { deserializeDate: false, treatAsLocalDate: false }
+
+  test('array column is nested as a single cell, not flattened into the row', () => {
+    // Simulates a Data API response for: SELECT id, tags FROM t WHERE ...
+    // where `tags` is a text[] column (typeName starts with '_').
+    const records = [
+      [
+        { longValue: 42 },
+        { arrayValue: { stringValues: ['admin', 'editor'] } }
+      ]
+    ]
+    const columns = [
+      { label: 'id', typeName: 'INT4' },
+      { label: 'tags', typeName: '_text' }
+    ]
+
+    const result = formatRecords(records as any, columns, false, formatOptions)
+
+    // Row must have exactly 2 cells: the scalar id and the array as a single nested value.
+    expect(result).toHaveLength(1)
+    expect(result[0]).toHaveLength(2)
+    expect(result[0][0]).toBe(42)
+    expect(result[0][1]).toEqual(['admin', 'editor'])
+  })
+})
+
 describe('formatUpdateResults', () => {
   test('with insertIds', async () => {
     let { updateResults } = require('#fixtures/sample-batch-insert-response.json')

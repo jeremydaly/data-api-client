@@ -247,3 +247,41 @@ export function mapToMySQLError(error: any): MySQLError {
 
   return mysqlError
 }
+
+/**
+ * Map a Data API error to a Prisma DriverAdapterError. Lazy-requires
+ * @prisma/driver-adapter-utils (an optional peer dep) for the error class;
+ * falls back to a shaped plain Error if the package is unavailable.
+ */
+export function mapToPrismaError(error: any, engine: 'pg' | 'mysql'): Error {
+  const message: string = error?.message || String(error)
+  const lower = message.toLowerCase()
+
+  let kind: Record<string, unknown>
+  if (lower.includes('unique constraint') || lower.includes('duplicate')) {
+    kind = { kind: 'UniqueConstraintViolation' }
+  } else if (lower.includes('foreign key')) {
+    kind = { kind: 'ForeignKeyConstraintViolation' }
+  } else if (lower.includes('not-null') || lower.includes('null value') || lower.includes('cannot be null')) {
+    kind = { kind: 'NullConstraintViolation' }
+  } else if ((lower.includes('relation') || lower.includes('table')) && lower.includes('does not exist')) {
+    kind = { kind: 'TableDoesNotExist' }
+  } else if (lower.includes('column') && lower.includes('does not exist')) {
+    kind = { kind: 'ColumnNotFound' }
+  } else if (engine === 'pg') {
+    kind = { kind: 'postgres', code: error?.code || '', severity: 'ERROR', message, detail: undefined, column: undefined, hint: undefined }
+  } else {
+    kind = { kind: 'mysql', code: Number(error?.code) || 0, message, state: '' }
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { DriverAdapterError } = require('@prisma/driver-adapter-utils')
+    return new DriverAdapterError(kind)
+  } catch {
+    const fallback = new Error(message)
+    ;(fallback as any).name = 'DriverAdapterError'
+    ;(fallback as any).cause = kind
+    return fallback
+  }
+}

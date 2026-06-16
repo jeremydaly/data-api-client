@@ -144,6 +144,16 @@ describe('parameter processing', () => {
     ])
   })
 
+  test('normalizeParams treats a native-format param with typeHint as a single param (regression)', async () => {
+    // A param like { name: 'p1', value: { stringValue: 'x' }, typeHint: 'UUID' } is a
+    // *native* named parameter (name + value + optional allowed fields only).
+    // It must NOT be shredded into three params named 'name', 'value', 'typeHint'.
+    let result = normalizeParams([{ name: 'p1', value: { stringValue: 'x' }, typeHint: 'UUID' }] as any)
+    expect(result).toHaveLength(1)
+    expect((result[0] as any).name).toBe('p1')
+    expect((result[0] as any).typeHint).toBe('UUID')
+  })
+
   describe('formatType', () => {
     test('stringValue', async () => {
       let result = formatType('param', 'string val', 'stringValue', undefined, {
@@ -420,6 +430,37 @@ describe('parameter processing', () => {
       expect(processedParams).toEqual([
         { name: 'referenceId', value: { stringValue: '550e8400-e29b-41d4-a716-446655440000' } }
       ])
+    })
+
+    test('explicit typeHint on a native-format param is preserved in output', async () => {
+      // A param carrying its own typeHint (e.g. from the Prisma compat layer) must have
+      // that typeHint propagated through processParams → formatParam → formatType.
+      let { processedParams } = processParams(
+        'pg',
+        'INSERT INTO events (created_at) VALUES (:p1)',
+        { p1: { type: 'n_ph' } },
+        [{ name: 'p1', value: { stringValue: '2020-01-02 03:04:05' }, typeHint: 'TIMESTAMP' }],
+        { deserializeDate: false, treatAsLocalDate: false }
+      )
+      expect(processedParams).toHaveLength(1)
+      const param = processedParams[0] as any
+      expect(param.name).toBe('p1')
+      expect(param.typeHint).toBe('TIMESTAMP')
+      expect(param.value).toEqual({ stringValue: '2020-01-02 03:04:05' })
+    })
+
+    test('explicit typeHint does not affect params without one (no regression)', async () => {
+      // Params without typeHint must still produce output with no typeHint field.
+      let { processedParams } = processParams(
+        'pg',
+        'SELECT * FROM users WHERE id = :id',
+        { id: { type: 'n_ph' } },
+        [{ name: 'id', value: 'hello' }],
+        { deserializeDate: false, treatAsLocalDate: false }
+      )
+      const param = processedParams[0] as any
+      expect(param.typeHint).toBeUndefined()
+      expect(param.value).toEqual({ stringValue: 'hello' })
     })
   })
 })

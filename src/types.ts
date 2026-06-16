@@ -103,6 +103,7 @@ export interface NamedParameter {
   name: string
   value: ParameterValue
   cast?: string
+  typeHint?: string
 }
 
 // Parameter can be an object of key-value pairs or an array of named parameters

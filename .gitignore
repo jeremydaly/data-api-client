@@ -23,6 +23,13 @@ dump.rdb
 .vscode
 .idea
 
+# Prisma generated clients (integration tests)
+integration-tests/prisma/generated-*/
+
+# Local-only development artifacts (kept out of the repo)
+/docs/
+spikes/
+
 # AI coding assistant instruction files
 CLAUDE.md
 WARP.md
