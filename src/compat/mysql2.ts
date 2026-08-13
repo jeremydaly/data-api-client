@@ -296,7 +296,7 @@ export function createMySQLConnection(config: DataAPIClientConfig): Connection {
     if (txControl) return txControl
 
     let sql: string
-    let values: any[] | Record<string, any> = []
+    let values: any[] | Record<string, any>
     let rowsAsArray = false
     let useNamedPlaceholders = mysqlConfig.namedPlaceholders || false
 
@@ -612,7 +612,7 @@ export function createMySQLPool(config: DataAPIClientConfig): Pool {
     params?: any[] | Record<string, any>
   ): Promise<[R[] | MySQL2QueryResult<R>, any]> {
     let sql: string
-    let values: any[] | Record<string, any> = []
+    let values: any[] | Record<string, any>
     let rowsAsArray = false
     let useNamedPlaceholders = mysqlConfig.namedPlaceholders || false
 

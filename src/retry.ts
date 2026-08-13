@@ -84,9 +84,8 @@ export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {
 
   let attempt = 0
   let retryDelays: number[] = []
-  let maxAttempts = 0
+  let maxAttempts: number
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       // First attempt has no delay (0ms)
