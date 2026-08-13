@@ -14,6 +14,13 @@ permissions:
   id-token: write
   contents: read
 
+# Serialize against the Integration Tests workflow (same group name) — both run
+# the integration suites against the same shared Aurora clusters, and concurrent
+# runs race on table setup/teardown.
+concurrency:
+  group: integration-tests
+  cancel-in-progress: false
+
 jobs:
   test-and-publish:
     runs-on: ubuntu-latest
