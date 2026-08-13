@@ -275,7 +275,7 @@ export function mapToPrismaError(error: any, engine: 'pg' | 'mysql'): Error {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { DriverAdapterError } = require('@prisma/driver-adapter-utils')
     return new DriverAdapterError(kind)
   } catch {

@@ -261,7 +261,7 @@ export function createPgClient(config: DataAPIClientConfig): PgCompatClient {
   async function executeQuery<R = any>(sqlOrConfig: string | PgQueryConfig, params?: any[]): Promise<PgQueryResult<R>> {
     // Handle both query(sql, params) and query({ text, values }) formats
     let sql: string
-    let values: any[] = []
+    let values: any[]
     let rowMode: 'array' | 'object' | undefined
 
     if (typeof sqlOrConfig === 'string') {
@@ -479,7 +479,7 @@ export function createPgPool(config: DataAPIClientConfig): PgCompatPool {
     params?: any[]
   ): Promise<PgQueryResult<R>> {
     let sql: string
-    let values: any[] = []
+    let values: any[]
     let rowMode: 'array' | 'object' | undefined
 
     if (typeof sqlOrConfig === 'string') {

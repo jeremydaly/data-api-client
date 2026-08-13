@@ -39,7 +39,7 @@ import type { DataAPIClientConfig } from '../types'
 export function createKnexMySQLClient(config: DataAPIClientConfig): unknown {
   // Lazy require so importing this module does not make `knex` a hard dependency
   // of data-api-client — only callers who actually use Knex need it installed.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Client_MySQL2 = require('knex/lib/dialects/mysql2')
 
   return class DataApiKnexMySQLClient extends Client_MySQL2 {
@@ -69,7 +69,7 @@ export function createKnexMySQLClient(config: DataAPIClientConfig): unknown {
  */
 export function createKnexPgClient(config: DataAPIClientConfig): unknown {
   // Lazy require so importing this module does not make `knex` a hard dependency.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Client_PG = require('knex/lib/dialects/postgres')
 
   return class DataApiKnexPgClient extends Client_PG {
