@@ -122,6 +122,30 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: npx vitest run integration-tests/knex-mysql.int.test.ts
 
+      - name: Run Knex PostgreSQL integration tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/knex-pg.int.test.ts
+
+      - name: Run Knex MySQL query builder tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/knex-mysql-querybuilder.int.test.ts
+
+      - name: Run Knex PostgreSQL query builder tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/knex-pg-querybuilder.int.test.ts
+
       # Generated Prisma clients are gitignored, so build them before the
       # Prisma suites. No database access needed.
       - name: Generate Prisma clients
