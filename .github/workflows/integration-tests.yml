@@ -122,6 +122,47 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: npx vitest run integration-tests/knex-mysql.int.test.ts
 
+      # Generated Prisma clients are gitignored, so build them before the
+      # Prisma suites. No database access needed.
+      - name: Generate Prisma clients
+        run: |
+          npx prisma generate --schema integration-tests/prisma/schema-mysql.prisma
+          npx prisma generate --schema integration-tests/prisma/schema-pg.prisma
+          npx prisma generate --schema integration-tests/prisma/schema-mysql-coverage.prisma
+          npx prisma generate --schema integration-tests/prisma/schema-pg-coverage.prisma
+
+      - name: Run Prisma MySQL integration tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/prisma-mysql.int.test.ts
+
+      - name: Run Prisma PostgreSQL integration tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/prisma-pg.int.test.ts
+
+      - name: Run Prisma MySQL API coverage tests
+        env:
+          MYSQL_RESOURCE_ARN: ${{ secrets.MYSQL_RESOURCE_ARN }}
+          MYSQL_SECRET_ARN: ${{ secrets.MYSQL_SECRET_ARN }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/prisma-mysql-coverage.int.test.ts
+
+      - name: Run Prisma PostgreSQL API coverage tests
+        env:
+          POSTGRES_RESOURCE_ARN: ${{ secrets.POSTGRES_RESOURCE_ARN }}
+          POSTGRES_SECRET_ARN: ${{ secrets.POSTGRES_SECRET_ARN }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npx vitest run integration-tests/prisma-pg-coverage.int.test.ts
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
