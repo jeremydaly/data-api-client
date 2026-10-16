@@ -101,7 +101,7 @@
     "@types/sqlstring": "^2.3.2",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
-    "@vitest/ui": "^4.1.8",
+    "@vitest/ui": "^4.1.11",
     "drizzle-orm": "^0.45.2",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^8.5.0",
@@ -113,7 +113,7 @@
     "prisma": "^7.8.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "sqlstring": "^2.3.2"
