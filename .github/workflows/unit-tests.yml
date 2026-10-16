@@ -1,0 +1,54 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main, v2.0.0]
+  pull_request:
+    branches: [main, v2.0.0]
+  workflow_dispatch:
+
+# Unit tests don't touch the shared Aurora cluster, so they get their own
+# per-ref group and can cancel superseded runs.
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Covers the supported range from package.json "engines" (>=20)
+        node-version: ['20', '22', '24']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      # The lockfile is maintained with npm 11 (Node 24 / Dependabot). npm 10,
+      # bundled with Node 20/22, rejects it in `npm ci` because it records
+      # optional peer deps differently. Pin npm so every matrix leg installs
+      # from the same lockfile.
+      - name: Use npm 11
+        if: matrix.node-version != '24'
+        run: npm install -g npm@11
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run unit tests (builds first)
+        run: npm run test:unit
